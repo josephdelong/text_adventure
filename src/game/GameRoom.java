@@ -69,6 +69,47 @@ public class GameRoom {
 	}
 
 	/**
+	 * makeRoomVolume(int,int,int) Given a LENGTH, WIDTH, and HEIGHT (each between 1 and 100, inclusive), this method will create 
+	 * a 3D volume of empty GameVolume cubes, with proper collision detection on all edge volumes
+	 * @param length The LENGTH of the GameRoom interior, in units of GameVolume. Must be between 1 & 100, inclusive
+	 * @param width The WIDTH of the GameRoom interior, in units of GameVolume. Must be between 1 & 100, inclusive
+	 * @param height The HEIGHT of the GameRoom interior, in units of GameVolume. Must be between 1 & 100, inclusive
+	 * @return A list of GameVolume, representing the interior volume of the GameRoom, or null if LENGTH, WIDTH, or HEIGHT are outside the
+	 * numerical constraints listed above
+	 */
+	protected static List<GameVolume> makeRoomVolume(int length, int width, int height) {
+		if(length < 1 || length > 100 || width < 1 || width > 100 || height < 1 || height > 100) {
+			return null;
+		}
+		List<GameVolume> interior = new ArrayList<GameVolume>();
+		byte passableDirs = 0b11_11_11;//represents the Z+Z-_Y+Y-_X+X- indicators for whether the indicated direction is passable into or out of the center of the volume
+		for(int z = 1; z <= height; z++) {
+			for(int y = 1; y <= width; y++) {
+				for(int x = 1; x <= length; x++) {
+					//this setup assumes the room is larger than 1 GameVolume in every direction
+					if(x == 1) {
+						passableDirs &= 0b11_11_10;//X- direction not passable
+					} else if(x == length) {
+						passableDirs &= 0b11_11_01;//X+ direction not passable
+					}
+					if(y == 1) {
+						passableDirs &= 0b11_10_11;//Y- direction not passable
+					} else if(y == width) {
+						passableDirs &= 0b11_01_11;//Y+ direction not passable
+					}
+					if(z == 1) {
+						passableDirs &= 0b10_11_11;//Z- direction not passable
+					} else if(z == height) {
+						passableDirs &= 0b01_11_11;//Z+ direction not passable
+					}
+					interior.add(new GameVolume(x,y,z,true,passableDirs,false,(byte)0b00_00,null,null,null));
+				}
+			}
+		}
+		return interior;
+	}
+
+	/**
 	 * lookup(int) Finds the GameRoom by roomId, if exists
 	 * @param roomId The ID of the room to look up
 	 * @return The GameRoom with the roomId specified

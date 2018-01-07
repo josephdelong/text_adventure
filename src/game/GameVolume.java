@@ -163,10 +163,9 @@ public class GameVolume {
 				roomObjects.addAll(l);
 			}
 			for(int i = 0; i < roomObjects.size(); i++) {
-				if(i == roomObjects.size() - 1) {
-					returnString += roomObjects.get(i).getByteString();
-				} else {
-					returnString += roomObjects.get(i).getByteString() + "‡";
+				returnString += roomObjects.get(i).getByteString();
+				if(i < roomObjects.size() - 1) {
+					returnString += "‡";
 				}
 			}
 		} else {
@@ -179,10 +178,9 @@ public class GameVolume {
 				roomEnemies.addAll(l);
 			}
 			for(int i = 0; i < roomEnemies.size(); i++) {
-				if(i == roomEnemies.size() - 1) {
-					returnString += roomEnemies.get(i).getByteString();
-				} else {
-					returnString += roomEnemies.get(i).getByteString() + "‡";
+				returnString += roomEnemies.get(i).getByteString();
+				if(i < roomEnemies.size() - 1) {
+					returnString += "‡";
 				}
 			}
 		} else {
@@ -195,10 +193,9 @@ public class GameVolume {
 				roomItems.addAll(l);
 			}
 			for(int i = 0; i < roomItems.size(); i++) {
-				if(i == roomItems.size() - 1) {
-					returnString += roomItems.get(i).getByteString();
-				} else {
-					returnString += roomItems.get(i).getByteString() + "¶";
+				returnString += roomItems.get(i).getByteString();
+				if(i < roomItems.size() - 1) {
+					returnString += "¶";
 				}
 			}
 		} else {

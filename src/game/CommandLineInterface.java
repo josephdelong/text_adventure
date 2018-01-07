@@ -733,6 +733,8 @@ public class CommandLineInterface {
 					for(GameEnemy e: GameEnemy.enemies.values()) {
 						debugString += e.name.toUpperCase() + ": " + e.description + " - HP: " + e.currentHp + "\n";
 					}
+				} else {
+					debugString += "No ENEMYs in current Game files";
 				}
 				break;
 			case "item": case "gameitem": case "game_item":
@@ -740,6 +742,8 @@ public class CommandLineInterface {
 					for(GameItem i: GameItem.items.values()) {
 						debugString += i.name.toUpperCase() + ": " + i.description + " - EquipSlot: " + i.equipSlot + "\n";
 					}
+				} else {
+					debugString += "No ITEMs in current Game files";
 				}
 				break;
 			case "object": case "gameobject": case "game_object":
@@ -747,6 +751,8 @@ public class CommandLineInterface {
 					for(GameObject o: GameObject.objects.values()) {
 						debugString += o.name.toUpperCase() + ": " + o.description + " - HP: " + o.currentHp + "\n";
 					}
+				} else {
+					debugString += "No OBJECTs in current Game files";
 				}
 				break;
 			case "room": case "gameroom": case "game_room":
@@ -754,6 +760,8 @@ public class CommandLineInterface {
 					for(GameRoom r: GameRoom.rooms.values()) {
 						debugString += r.roomId + ": " + r.description + "\n";
 					}
+				} else {
+					debugString += "No ROOMs in current Game files";
 				}
 				break;
 			case "spell": case "gamespell": case "game_spell":
@@ -761,9 +769,30 @@ public class CommandLineInterface {
 					for(GameSpell s: GameSpell.spells.values()) {
 						debugString += s.name.toUpperCase() + ": " + s.description + " - SP Cost: " + s.spellPointCost + "\n";
 					}
+				} else {
+					debugString += "NONE";
+				}
+				break;
+			case "prefix": case "gameprefix": case "game_prefix": case "gameitemprefix": case "game_item_prefix":
+				if(GameItemPrefix.prefixes != null && !GameItemPrefix.prefixes.isEmpty()) {
+					for(GameItemPrefix p: GameItemPrefix.prefixes.values()) {
+						debugString += p.name.toUpperCase() + ": " + p.itemType + ", Value: " + p.baseValueAdd;
+					}
+				} else {
+					debugString += "No ITEM PREFIXes in current Game files";
+				}
+				break;
+			case "suffix": case "gamesuffix": case "game_suffix": case "gameitemsuffix": case "game_item_suffix":
+				if(GameItemSuffix.suffixes != null && !GameItemSuffix.suffixes.isEmpty()) {
+					for(GameItemSuffix p: GameItemSuffix.suffixes.values()) {
+						debugString += p.name.toUpperCase() + ": " + p.itemType + ", Value: " + p.baseValueAdd;
+					}
+				} else {
+					debugString += "No ITEM SUFFIXes in current Game files";
 				}
 				break;
 			default:
+				debugString += "Unknown context for DEBUG: " + context.toUpperCase();
 				break;
 			}
 		}
@@ -796,6 +825,22 @@ public class CommandLineInterface {
 					String[] itemData = new String(fileData).split("¦");
 					for(String s: itemData) {
 						GameItem.parseBytes(s.getBytes());
+					}
+					break;
+				case "GameItemPrefix":
+					fileData = decompress(readFile(f));
+					fileData = Base64.getDecoder().decode(fileData);
+					String[] prefixData = new String(fileData).split("¦");
+					for(String s: prefixData) {
+						GameItemPrefix.parseBytes(s.getBytes());
+					}
+					break;
+				case "GameItemSuffix":
+					fileData = decompress(readFile(f));
+					fileData = Base64.getDecoder().decode(fileData);
+					String[] suffixData = new String(fileData).split("¦");
+					for(String s: suffixData) {
+						GameItemSuffix.parseBytes(s.getBytes());
 					}
 					break;
 				case "GameObject":
@@ -862,6 +907,34 @@ public class CommandLineInterface {
 				}
 			}
 			fileOut = new FileOutputStream("./res/GameItem");
+			fileOut.write(compress(Base64.getEncoder().encode(dataString.getBytes())));
+			fileOut.close();
+		}
+		if(GameItemPrefix.prefixes != null && !GameItemPrefix.prefixes.isEmpty()) {
+			List<GameItemPrefix> prefixes = new ArrayList<GameItemPrefix>();
+			prefixes.addAll(GameItemPrefix.prefixes.values());
+			String dataString = "";
+			for(int i = 0; i < prefixes.size(); i++) {
+				dataString += prefixes.get(i).getByteString();
+				if(i != prefixes.size() - 1) {
+					dataString += "¦";//separate individual entries
+				}
+			}
+			fileOut = new FileOutputStream("./res/GameItemPrefix");
+			fileOut.write(compress(Base64.getEncoder().encode(dataString.getBytes())));
+			fileOut.close();
+		}
+		if(GameItemSuffix.suffixes != null && !GameItemSuffix.suffixes.isEmpty()) {
+			List<GameItemSuffix> suffixes = new ArrayList<GameItemSuffix>();
+			suffixes.addAll(GameItemSuffix.suffixes.values());
+			String dataString = "";
+			for(int i = 0; i < suffixes.size(); i++) {
+				dataString += suffixes.get(i).getByteString();
+				if(i != suffixes.size() - 1) {
+					dataString += "¦";//separate individual entries
+				}
+			}
+			fileOut = new FileOutputStream("./res/GameItemSuffix");
 			fileOut.write(compress(Base64.getEncoder().encode(dataString.getBytes())));
 			fileOut.close();
 		}
@@ -1127,7 +1200,7 @@ public class CommandLineInterface {
 												System.out.println("Bad input: " + contentString.toUpperCase());
 											}
 										}
-										room.interior = makeRoomVolume(room.length, room.width, room.height);
+										room.interior = GameRoom.makeRoomVolume(room.length, room.width, room.height);
 										System.out.println("ROOM VOLUME [" + room.length + "," + room.width + "," + room.height + "] initialized");
 									} else if(contentString.equals("n")) {
 										System.out.println("ROOM VOLUME (and contents) unchanged");
@@ -1147,7 +1220,7 @@ public class CommandLineInterface {
 										System.out.println("Invalid LENGTH: " + contentString);
 									}
 									if(room.width > 0 && room.height > 0) {//room VOLUME is valid
-										room.interior = makeRoomVolume(room.length, room.width, room.height);
+										room.interior = GameRoom.makeRoomVolume(room.length, room.width, room.height);
 										System.out.println("LENGTH, WIDTH, & HEIGHT have been set. You may now set up the CONTENTS of the ROOM.");
 									} else {
 										if(room.width == 0) {
@@ -1189,7 +1262,7 @@ public class CommandLineInterface {
 												System.out.println("Bad input: " + contentString.toUpperCase());
 											}
 										}
-										room.interior = makeRoomVolume(room.length, room.width, room.height);
+										room.interior = GameRoom.makeRoomVolume(room.length, room.width, room.height);
 										System.out.println("ROOM VOLUME [" + room.length + "," + room.width + "," + room.height + "] initialized");
 									} else if(contentString.equals("n")) {
 										System.out.println("ROOM VOLUME (and contents) unchanged");
@@ -1209,7 +1282,7 @@ public class CommandLineInterface {
 										System.out.println("Invalid WIDTH: " + contentString);
 									}
 									if(room.length > 0 && room.height > 0) {//room VOLUME is valid
-										room.interior = makeRoomVolume(room.length, room.width, room.height);
+										room.interior = GameRoom.makeRoomVolume(room.length, room.width, room.height);
 										System.out.println("LENGTH, WIDTH, & HEIGHT have been set. You may now set up the CONTENTS of the ROOM.");
 									} else {
 										if(room.length == 0) {
@@ -1251,7 +1324,7 @@ public class CommandLineInterface {
 												System.out.println("Bad input: " + contentString.toUpperCase());
 											}
 										}
-										room.interior = makeRoomVolume(room.length, room.width, room.height);
+										room.interior = GameRoom.makeRoomVolume(room.length, room.width, room.height);
 										System.out.println("ROOM VOLUME [" + room.length + "," + room.width + "," + room.height + "] initialized");
 									} else if(contentString.equals("n")) {
 										System.out.println("ROOM VOLUME (and contents) unchanged");
@@ -1271,7 +1344,7 @@ public class CommandLineInterface {
 										System.out.println("Invalid HEIGHT: " + contentString);
 									}
 									if(room.length > 0 && room.width > 0) {//room VOLUME is valid
-										room.interior = makeRoomVolume(room.length, room.width, room.height);
+										room.interior = GameRoom.makeRoomVolume(room.length, room.width, room.height);
 										System.out.println("LENGTH, WIDTH, & HEIGHT have been set. You may now set up the CONTENTS of the ROOM.");
 									} else {
 										if(room.length == 0) {
@@ -3069,47 +3142,6 @@ public class CommandLineInterface {
 	}
 
 	/**
-	 * makeRoomVolume(int,int,int) Given a LENGTH, WIDTH, and HEIGHT (each between 1 and 100, inclusive), this method will create 
-	 * a 3D volume of empty GameVolume cubes, with proper collision detection on all edge volumes
-	 * @param length The LENGTH of the GameRoom interior, in units of GameVolume. Must be between 1 & 100, inclusive
-	 * @param width The WIDTH of the GameRoom interior, in units of GameVolume. Must be between 1 & 100, inclusive
-	 * @param height The HEIGHT of the GameRoom interior, in units of GameVolume. Must be between 1 & 100, inclusive
-	 * @return A list of GameVolume, representing the interior volume of the GameRoom, or null if LENGTH, WIDTH, or HEIGHT are outside the
-	 * numerical constraints listed above
-	 */
-	private static List<GameVolume> makeRoomVolume(int length, int width, int height) {
-		if(length < 1 || length > 100 || width < 1 || width > 100 || height < 1 || height > 100) {
-			return null;
-		}
-		List<GameVolume> interior = new ArrayList<GameVolume>();
-		byte passableDirs = 0b11_11_11;//represents the Z+Z-_Y+Y-_X+X- indicators for whether the indicated direction is passable into or out of the center of the volume
-		for(int z = 1; z <= height; z++) {
-			for(int y = 1; y <= width; y++) {
-				for(int x = 1; x <= length; x++) {
-					//this setup assumes the room is larger than 1 GameVolume in every direction
-					if(x == 1) {
-						passableDirs &= 0b11_11_10;//X- direction not passable
-					} else if(x == length) {
-						passableDirs &= 0b11_11_01;//X+ direction not passable
-					}
-					if(y == 1) {
-						passableDirs &= 0b11_10_11;//Y- direction not passable
-					} else if(y == width) {
-						passableDirs &= 0b11_01_11;//Y+ direction not passable
-					}
-					if(z == 1) {
-						passableDirs &= 0b10_11_11;//Z- direction not passable
-					} else if(z == height) {
-						passableDirs &= 0b01_11_11;//Z+ direction not passable
-					}
-					interior.add(new GameVolume(x,y,z,true,passableDirs,false,(byte)0b00_00,null,null,null));
-				}
-			}
-		}
-		return interior;
-	}
-
-	/**
 	 * intro() Displays an Intro screen for the User
 	 * @return String containing the contents of the Intro screen
 	 */
@@ -4330,7 +4362,7 @@ public class CommandLineInterface {
 			helpString += "Save Game in the current Save Game slot.\n";
 			helpString += "\n";
 			helpString += "Syntax: SAVE\n";
-			helpString += "Syntax: SAVE [n] (where [n] is anumber between 1 and 10)\n";
+			helpString += "Syntax: SAVE [n] (where [n] is a number between 1 and 10)\n";
 			break;
 		case "test":
 			helpString += "-- HELP: TEST --\n";

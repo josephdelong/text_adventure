@@ -109,10 +109,9 @@ public class GameEnemy {
 		if(this.inventory != null && this.inventory.size() > 0) {
 			List<GameItem> invItems = this.inventory;
 			for(int i = 0; i < invItems.size(); i++) {
-				if(i == invItems.size() - 1) {
-					returnString += invItems.get(i).getByteString();
-				} else {
-					returnString += invItems.get(i).getByteString() + "¶";
+				returnString += invItems.get(i).getByteString();
+				if(i < invItems.size() - 1) {
+					returnString += "¶";
 				}
 			}
 		} else {

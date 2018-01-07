@@ -111,10 +111,9 @@ public class GameObject {
 		if(this.contents != null && this.contents.size() > 0) {
 			List<GameItem> invItems = this.contents;
 			for(int i = 0; i < invItems.size(); i++) {
-				if(i == invItems.size() - 1) {
-					returnString += invItems.get(i).getByteString();
-				} else {
-					returnString += invItems.get(i).getByteString() + "¶";
+				returnString += invItems.get(i).getByteString();
+				if(i < invItems.size() - 1) {
+					returnString += "¶";
 				}
 			}
 		} else {

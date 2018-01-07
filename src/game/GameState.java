@@ -119,10 +119,7 @@ public class GameState {
 		List<GameEnemy> enemies = new ArrayList<GameEnemy>();
 		enemies.add(skeleton);
 		roomEnemies.put(skeleton.name,enemies);
-		List<GameVolume> roomVolumes = new ArrayList<GameVolume>();
-		for(int i = 0; i < 9; i++) {
-			roomVolumes.add(new GameVolume());
-		}
+		List<GameVolume> roomVolumes = GameRoom.makeRoomVolume(3, 3, 1);
 		GameVolume centerVolume = new GameVolume(2,2,1,true,(byte)0b11_11_11,false,(byte)0b00_00,null,roomEnemies,null);
 		roomVolumes.set(4, centerVolume);
 		GameRoom startRoom = new GameRoom(0,"This is a very spooky-looking room. Lots of cobwebs and dust and things like that.",3,3,1,roomVolumes);
@@ -135,7 +132,7 @@ public class GameState {
 		Map<String,GameSpell> spells = new HashMap<String,GameSpell>();
 		GameSpell firebolt = new GameSpell("firebolt",0,0,"Fires a small bolt of flame from your extended fingertip.",4,1,0,GameSpell.damage_FIRE);
 		spells.put(firebolt.name, firebolt);
-		//repeat...
+		//repeat for more Spells player should know from the start...
 		this.spellbook = spells;
 		this.currentSp = 10;
 		this.maxSp = 10;
@@ -642,6 +639,7 @@ public class GameState {
 	 */
 	protected byte[] getBytes() {
 	/*
+		¦ = separator between RESOURCE File entries
 		$ = separator between STATE fields
 		€ = separator between list entries of ROOMs
 		ƒ = separator between ROOM fields
@@ -651,16 +649,18 @@ public class GameState {
 		§ = separator between OBJECT/ENEMY fields
 		¶ = separator between list entries of ITEMs/SPELLs
 		| = separator between ITEM/SPELL fields
+		ß = separator between list entries of PREFIX/SUFFIX
+		µ = separator between PREFIX/SUFFIX fields
+		· = separator between PREFIX/SUFFIX array members
 	 */
 		String returnString = this.currentXp + "$" + this.currentLevel + "$" + this.currentHp + "$" + this.maxHp + "$" + this.heldItem + "$";
 		if(this.inventory != null && this.inventory.size() > 0) {
 			List<GameItem> inventoryItems = new ArrayList<GameItem>();
 			inventoryItems.addAll(this.inventory.values());
 			for(int i = 0; i < inventoryItems.size(); i++) {
-				if(i == inventoryItems.size() - 1) {
-					returnString += inventoryItems.get(i).getByteString();
-				} else {
-					returnString += inventoryItems.get(i).getByteString() + "¶";
+				returnString += inventoryItems.get(i).getByteString();
+				if(i < inventoryItems.size() - 1) {
+					returnString += "¶";
 				}
 			}
 		} else {
@@ -671,10 +671,9 @@ public class GameState {
 			List<GameRoom> seenRooms = new ArrayList<GameRoom>();
 			seenRooms.addAll(this.visitedRooms.values());
 			for(int i = 0; i < seenRooms.size(); i++) {
-				if(i == seenRooms.size() - 1) {
-					returnString += seenRooms.get(i).getByteString();
-				} else {
-					returnString += seenRooms.get(i).getByteString() + "€";
+				returnString += seenRooms.get(i).getByteString();
+				if(i < seenRooms.size() - 1) {
+					returnString += "€";
 				}
 			}
 		} else {
@@ -685,10 +684,9 @@ public class GameState {
 			List<GameSpell> playerSpells = new ArrayList<GameSpell>();
 			playerSpells.addAll(this.spellbook.values());
 			for(int i = 0; i < playerSpells.size(); i++) {
-				if(i == playerSpells.size() - 1) {
-					returnString += playerSpells.get(i).getByteString();
-				} else {
-					returnString += playerSpells.get(i).getByteString() + "¶";
+				returnString += playerSpells.get(i).getByteString();
+				if(i < playerSpells.size() - 1) {
+					returnString += "¶";
 				}
 			}
 		} else {
