@@ -1,8 +1,13 @@
 package game;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataInputStream;
+import game.asset.GameItemModifier;
+import game.asset.item.GameItem;
+import game.asset.object.GameObject;
+import game.asset.room.GameRoom;
+import game.asset.room.GameVolume;
+import game.asset.spell.GameSpell;
+import game.util.GameUtility;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -14,19 +19,16 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.zip.DataFormatException;
-import java.util.zip.Deflater;
-import java.util.zip.Inflater;
 
 /**
- * CommandLineInterface A Command Line Interface for use with various text-based adventure games, designed by yours truly
+ * GameInterface A Command Line Interface for use with various text-based adventure games, designed by yours truly
  * @author Joseph DeLong
  */
-public class CommandLineInterface {
+public class GameInterface {
 
 	private static boolean isRunning = true;
 	private static int saveGameSlot = 0;
@@ -51,7 +53,7 @@ public class CommandLineInterface {
 	public static void main(String[] args) {
 		try {
 			Instant start = Instant.now();
-			loadTemplates();//load all persisted GameEnemy, GameItem, GameObject, GameRoom, GameSpell
+			GameUtility.loadTemplates();//load all persisted GameEnemy, GameItem, GameObject, GameRoom, GameSpell, etc.
 			File saveGameFilePath = new File("./saveGames");//load previously SAVEd Games
 			if(saveGameFilePath.exists() && saveGameFilePath.isDirectory()) {
 				File[] tempFiles = new File[] {null,null,null,null,null,null,null,null,null,null};
@@ -76,7 +78,7 @@ public class CommandLineInterface {
 				//detect which is -i "String" and which is -o "String"
 				List<String> capturedArgs = new ArrayList<String>();
 				for(String s: args) {
-					capturedArgs.add(s.toLowerCase());//TODO: handle filepaths with spaces!
+					capturedArgs.add(s.toLowerCase().replaceAll("\\","/"));//TODO: handle filepaths with spaces!
 				}
 				int inputIndex = capturedArgs.indexOf("-i");
 				int outputIndex = capturedArgs.indexOf("-o");
@@ -106,8 +108,7 @@ public class CommandLineInterface {
 			while(isRunning) {
 				System.out.print("[]>");
 				userInput = sanitize(sc.nextLine());
-				inputCommands.add(userInput);//log user input for export, I guess
-				//TODO: break each COMMAND into its own class, with do() and help() methods
+				//TODO: break each COMMAND into its own class, with do()? and help() methods
 				if(userInput.matches("commands\\s*.*")) {
 					System.out.println(displayHelp("commands"));
 				} else if(userInput.matches("\\?.*")) {
@@ -124,7 +125,6 @@ public class CommandLineInterface {
 				} else if(userInput.matches("exit\\s*.*")) {
 					System.out.println("Do you really want to EXIT? All unSaved progress will be lost!");
 					userInput = sanitize(sc.nextLine());
-					inputCommands.add(userInput);//log user input for export, I guess
 					if(userInput.matches("y\\s*.*")) {
 						System.out.println("Exiting the Game.");
 						exit();
@@ -141,7 +141,6 @@ public class CommandLineInterface {
 							} else {
 								System.out.print("LOAD the Saved Game in current slot [" + saveGameSlot + "]? ");
 								userInput = sanitize(sc.nextLine());
-								inputCommands.add(userInput);//log user input for export, I guess
 								if(userInput.matches("y\\s*.*")) {
 									loadGame(saveGameSlot);
 								}
@@ -166,7 +165,6 @@ public class CommandLineInterface {
 					} else {//there is a Game already Loaded
 						System.out.print("Start a New Game? Unsaved progress in current Game will be lost");
 						userInput = sanitize(sc.nextLine());
-						inputCommands.add(userInput);//log user input for export, I guess
 						if(userInput.matches("y\\s*.*")) {
 							newGame();
 						} else {
@@ -182,7 +180,6 @@ public class CommandLineInterface {
 						} else {////there is a Save Game slot active
 							System.out.print("Overwrite current Game in slot (" + saveGameSlot + ")? ");
 							userInput = sanitize(sc.nextLine());
-							inputCommands.add(userInput);//log user input for export, I guess
 							if(userInput.matches("y\\s*.*")) {
 								saveGame(saveGameSlot);
 							}
@@ -239,7 +236,6 @@ public class CommandLineInterface {
 					if(userInput.equals("look") || userInput.matches("look\\s+(at|for){1}\\s*")) {
 						System.out.println("What do you want to LOOK at?");
 						String context = sanitize(sc.nextLine());
-						inputCommands.add(context);//log user input for export, I guess
 						if(context.length() > 0) {
 							System.out.println(look(context));
 						} else {
@@ -255,57 +251,49 @@ public class CommandLineInterface {
 					if(userInput.equals("take")) {
 						System.out.println("What do you want to TAKE?");
 						String context = sanitize(sc.nextLine());
-						inputCommands.add(context);//log user input for export, I guess
 						if(context.length() > 0) {
 							System.out.println(take(context));
 						} else {
 							System.out.println("You decide not to touch anything.");
 						}
 					} else if(userInput.matches("take\\s+.+")) {
-						String[] tokens = userInput.split("\\s+");
-						System.out.println(take(tokens[1]));
+						System.out.println(take(userInput.substring(userInput.indexOf(' ') + 1)));
 					}
 				} else if(userInput.matches("drop\\s*.*")) {
 					if(userInput.equals("drop")) {
 						System.out.println("What do you want to DROP?");
 						String context = sanitize(sc.nextLine());
-						inputCommands.add(context);//log user input for export, I guess
 						if(context.length() > 0) {
 							System.out.println(drop(context));
 						} else {
-							System.out.println("You decide to hold onto your spells for now.");
+							System.out.println("You decide to hold onto your items for now.");
 						}
 					} else if(userInput.matches("drop\\s+.+")) {
-						String[] tokens = userInput.split("\\s+");
-						System.out.println(drop(tokens[1]));
+						System.out.println(drop(userInput.substring(userInput.indexOf(' ') + 1)));
 					}
 				} else if(userInput.matches("equip\\s*.*")) {
 					if(userInput.equals("equip")) {
 						System.out.println("What do you want to EQUIP?");
 						String context = sanitize(sc.nextLine());
-						inputCommands.add(context);//log user input for export, I guess
 						if(context.length() > 0) {
 							System.out.println(equip(context));
 						} else {
 							System.out.println("You keep your current equipment as-is.");
 						}
 					} else if(userInput.matches("equip\\s+.+")) {
-						String[] tokens = userInput.split("\\s+");
-						System.out.println(equip(tokens[1]));
+						System.out.println(equip(userInput.substring(userInput.indexOf(' ') + 1)));
 					}
 				} else if(userInput.matches("unequip\\s*.*")) {
 					if(userInput.equals("unequip")) {
 						System.out.println("What do you want to UNEQUIP?");
 						String context = sanitize(sc.nextLine());
-						inputCommands.add(context);//log user input for export, I guess
 						if(context.length() > 0) {
 							System.out.println(unEquip(context));
 						} else {
 							System.out.println("You keep your current equipment as-is.");
 						}
 					} else if(userInput.matches("unequip\\s+.+")) {
-						String[] tokens = userInput.split("\\s+");
-						System.out.println(unEquip(tokens[1]));
+						System.out.println(unEquip(userInput.substring(userInput.indexOf(' ') + 1)));
 					}
 				} else if(userInput.matches("move\\s*.*")) {
 					//MOVE, MOVE DIRECTION, MOVE OBJECT
@@ -313,15 +301,13 @@ public class CommandLineInterface {
 						System.out.println("In what DIRECTION would you like to MOVE?");
 						System.out.println("     [ EAST | WEST | NORTH | SOUTH ]     ");
 						String context = sanitize(sc.nextLine());
-						inputCommands.add(context);//log user input for export, I guess
 						if(context.length() > 0) {
 							System.out.println(move(context));
 						} else {
 							System.out.println("You stay where you are.");
 						}
 					} else if(userInput.matches("move\\s+.+")) {
-						String[] tokens = userInput.split("\\s+");
-						System.out.println(move(tokens[1]));
+						System.out.println(move(userInput.substring(userInput.indexOf(' ') + 1)));
 					}
 				} else if(userInput.matches("attack\\s*.*")) {
 					//ATTACK, ATTACK TARGET, ATTACK TARGET WITH
@@ -331,18 +317,15 @@ public class CommandLineInterface {
 						if(context != null) {
 							System.out.println(attack(context));
 						}
-					} else if(userInput.matches("attack\\s+\\w+\\s+(with\\s+)?\\w+")) {//ATTACK TARGET WITH ITEM
+					}/* else if(userInput.matches("attack\\s+\\w+\\s+(with\\s+)?\\w+")) {//ATTACK TARGET WITH ITEM
 						String[] context = userInput.split("\\s+");
 						if(context.length > 3) {
 							System.out.println(attack(context[1],context[3]));
 						} else {
 							System.out.println(attack(context[1]));
 						}
-					} else {
-						String[] context = userInput.split("\\s+");
-						if(context.length > 1) {
-							System.out.println(attack(context[1]));
-						}
+					}*/ else {
+						System.out.println(attack(userInput.substring(userInput.indexOf(' ') + 1)));
 					}
 				} else if(userInput.matches("defend\\s*.*")) {
 					//DEFEND, DEFEND TARGET, DEFEND TARGET WITH, DEFEND AGAINST, DEFEND AGAINST WITH
@@ -352,7 +335,6 @@ public class CommandLineInterface {
 					if(userInput.equals("open")) {
 						System.out.println("What would you like to OPEN?");
 						userInput = sanitize(sc.nextLine());
-						inputCommands.add(userInput);
 						if(userInput.matches("\\w+")) {//process context
 							System.out.println(open(userInput));
 						} else {
@@ -367,13 +349,8 @@ public class CommandLineInterface {
 							gameState.inInventory = true;
 							System.out.println(showInventory());
 						}
-					} else if(userInput.matches("open\\s+\\w+")) {
-						String[] context = userInput.split("open\\s+");
-						if(context != null && context.length > 1) {
-							System.out.println(open(context[1]));
-						} else {
-							System.out.println("You decide not to OPEN anything after all.");
-						}
+					} else if(userInput.matches("open(\\s+\\w+)*")) {
+						System.out.println(open(userInput.substring(userInput.indexOf(' ') + 1)));
 					} else {
 						System.out.println("You don't know how to " + userInput.toUpperCase() + ".");
 					}
@@ -382,7 +359,6 @@ public class CommandLineInterface {
 					if(userInput.equals("close")) {
 						System.out.println("What would you like to CLOSE?");
 						userInput = sanitize(sc.nextLine());
-						inputCommands.add(userInput);
 						if(userInput.matches("\\w+")) {//process context
 							System.out.println(close(userInput));
 						} else {
@@ -393,13 +369,8 @@ public class CommandLineInterface {
 							gameState.inInventory = false;
 							System.out.println("You close your bags.");
 						}
-					} else if(userInput.matches("close\\s+\\w+")) {
-						String[] context = userInput.split("close\\s");
-						if(context != null && context.length > 1) {
-							System.out.println(close(context[1]));
-						} else {
-							System.out.println("You decide not to CLOSE anything after all.");
-						}
+					} else if(userInput.matches("close(\\s+\\w+)*")) {
+						System.out.println(close(userInput.substring(userInput.indexOf(' ') + 1)));
 					} else {
 						System.out.println("You don't know how to CLOSE a " + userInput.toUpperCase() + ".");
 					}
@@ -426,28 +397,26 @@ public class CommandLineInterface {
 				} else if(userInput.matches("rest\\s*.*")) {
 					//REST, REST DURATION, REST ON OBJECT
 					
-				} else if(userInput.matches("cast\\s*.*")) {
+				} else if(userInput.matches("cast\\s*.*")) {//TODO: restructure to have spellPicker & targetPicker -OR- to detect AT as the separator between spell target
 					//CAST, CAST SPELL, CAST SPELL TARGET
 					if(userInput.equals("cast")) {
 						System.out.println("What SPELL would you like to CAST?");
 						String spellName = sanitize(sc.nextLine());
-						inputCommands.add(spellName);
 						if(spellName.matches("\\w+.*")) {//process context
-							String[] context = spellName.split("\\s+(at|on)?");
+							String[] context = spellName.split("\\s+(at|on|target|targeting){1}\\s+");
 							if(context.length > 0) {//got a try at a SPELL name
 								if(context.length > 1) {//got a SPELL name + a try at a TARGET
 									System.out.println(castSpell(context[0],context[1]));//try to CAST SPELL TARGET
 								} else {//need a TARGET
 									System.out.println("On what TARGET would you like to CAST " + context[0].toUpperCase() + "?");
 									String target = sanitize(sc.nextLine());
-									inputCommands.add(target);
-									if(context[0].matches("\\w+") && target.matches("\\w+")) {
+									if(context[0].matches("\\w+(\\s+\\w+)*") && target.matches("\\w+(\\s+\\w+)*")) {
 										System.out.println(castSpell(context[0],target));
 									} else {//no TARGET
-										if(!GameSpell.spells.containsKey(context[0])) {//valid GameSpell
+										if(GameSpell.spells.containsKey(spellName)) {//valid GameSpell
 											System.out.println("You decide not to CAST " + context[0].toUpperCase() + " after all");
 										} else {
-											System.out.println("You're not even sure that " + userInput.toUpperCase() + " is a real SPELL.");
+											System.out.println("You're not even sure that " + spellName.toUpperCase() + " is a real SPELL.");
 										}
 									}
 								}
@@ -457,45 +426,55 @@ public class CommandLineInterface {
 						} else {
 							System.out.println("You're not even sure that " + spellName.toUpperCase() + " is a real SPELL.");
 						}
-					} else if(userInput.matches("cast\\s+\\w+")) {//got SPELL
-						String[] context = userInput.split("\\s+(at|on)?");
-						System.out.println("On what TARGET would you like to CAST " + context[1].toUpperCase() + "?");
-						String target = sanitize(sc.nextLine());
-						inputCommands.add(target);
-						if(context[1].matches("\\w+") && target.matches("\\w+")) {
-							System.out.println(castSpell(context[1],target));
-						} else {//no TARGET
-							if(!GameSpell.spells.containsKey(context[1])) {//valid GameSpell
-								System.out.println("You decide not to CAST " + context[1].toUpperCase() + " after all");
-							} else {
-								System.out.println("You're not even sure that " + userInput.toUpperCase() + " is a real SPELL.");
-							}
-						}
-					} else if(userInput.matches("cast\\s+\\w+\\s+\\w+.*")) {//got SPELL + TARGET
-						String[] context = userInput.split("\\s+");
-						if(context.length > 2) {
-							if(context[2].matches("(at|on)?")) {
-								if(context.length > 3) {
-									System.out.println(castSpell(context[1],context[3]));
-								} else {//get TARGET
-									System.out.println("On what TARGET would you like to CAST " + context[1].toUpperCase() + "?");
-									String target = sanitize(sc.nextLine());
-									inputCommands.add(target);
-									if(context[1].matches("\\w+") && target.matches("\\w+")) {
-										System.out.println(castSpell(context[1],target));
-									} else {//no SPELL name
-										if(!GameSpell.spells.containsKey(context[1])) {//valid GameSpell
-											System.out.println("You decide not to CAST " + context[1].toUpperCase() + " after all");
-										} else {
-											System.out.println("You're not even sure that " + userInput.toUpperCase() + " is a real SPELL.");
-										}
-									}
-								}
-							} else {
-								System.out.println(castSpell(context[1],context[2]));
+					} else if(userInput.matches("cast(\\s+\\w+)+")) {
+						String[] context = userInput.split("\\s+(at|on|attacking|target|targeting)\\s+");
+						if(context.length > 1) {//got at least 2 sets of text strings
+							String spellName = context[0].substring(context[0].indexOf(' ') + 1);
+							String target = context[1];
+						} else {//only got a spellName, at most
+							String spellName = context[0].substring(context[0].indexOf(' ') + 1);
+							if(spellName.length() > 0) {
+								
+							} else {//no spell name given
+								
 							}
 						}
 					}
+//					else if(userInput.matches("cast\\s+\\w+")) {//got SPELL
+//						String[] context = userInput.split("\\s+(at|on)?");
+//						System.out.println("On what TARGET would you like to CAST " + context[1].toUpperCase() + "?");
+//						String target = sanitize(sc.nextLine());
+//						if(context[1].matches("\\w+") && target.matches("\\w+(\\s+\\w+)*")) {
+//							System.out.println(castSpell(context[1],target));
+//						} else {//no TARGET
+//							if(!GameSpell.spells.containsKey(context[1])) {//valid GameSpell
+//								System.out.println("You decide not to CAST " + context[1].toUpperCase() + " after all");
+//							} else {
+//								System.out.println("You're not even sure that " + userInput.toUpperCase() + " is a real SPELL.");
+//							}
+//						}
+//					} else if(userInput.matches("cast\\s+\\w+\\s+\\w+.*")) {//got SPELL + TARGET
+//						String[] context = userInput.split("\\s+(at|on)?");
+//						if(context.length > 2) {
+//							if(context.length >= 3) {
+//								System.out.println(castSpell(context[1],userInput.substring(userInput.indexOf(context[2])).substring(userInput.indexOf(' '))));
+//							} else {
+//								System.out.println(castSpell(context[1],context[2]));
+//							}
+//						} else {//get TARGET
+//							System.out.println("On what TARGET would you like to CAST " + context[1].toUpperCase() + "?");
+//							String target = sanitize(sc.nextLine());
+//							if(context[1].matches("\\w+") && target.matches("\\w+(\\s+\\w+)*")) {
+//								System.out.println(castSpell(context[1],target));
+//							} else {//no SPELL name
+//								if(!GameSpell.spells.containsKey(context[1])) {//valid GameSpell
+//									System.out.println("You decide not to CAST " + context[1].toUpperCase() + " after all");
+//								} else {
+//									System.out.println("You're not even sure that " + userInput.toUpperCase() + " is a real SPELL.");
+//								}
+//							}
+//						}
+//					}
 				} else if(userInput.matches("debug\\s*.*")) {
 					if(userInput.equals("debug")) {
 						System.out.println(debug());
@@ -506,9 +485,8 @@ public class CommandLineInterface {
 						}
 					}
 				} else if(userInput.matches("create.*")) {
-					System.out.println("Are you sure you want to switch to CREATION mode? You will lose all unSAVEd progress.");
+					System.out.println("Are you sure you want to switch to CREATION mode? You will lose all unSAVEd progress.");//TODO: this is a lie
 					userInput = sanitize(sc.nextLine());
-					inputCommands.add(userInput);
 					if(userInput.matches("y.*")) {
 						creationMode();//enter CREATION mode
 					} else {
@@ -540,7 +518,8 @@ public class CommandLineInterface {
 	 * @return Sanitized version of the input user string
 	 */
 	private static String sanitize(String input) {
-		return input.trim().toLowerCase().replaceAll("[^A-Za-z0-9_\\?\\-/\\.\\s]*", "");//remove all characters other than those specified in this range
+		inputCommands.add(input);
+		return input.trim().toLowerCase().replaceAll("\\s+"," ").replaceAll("[^\\w\\?\\-/\\.\\s]*","");//remove all characters other than those specified
 		// maybe check for bad user userInput here as well?
 	}
 
@@ -551,13 +530,94 @@ public class CommandLineInterface {
 	private static void cleanUp() throws IOException {
 		sc.close();
 		if(fileIn != null) fileIn.close();
-		saveTemplates();
+		GameUtility.saveTemplates();
 		fileOut = new FileOutputStream(userInputCommandsLogFile);
 		for(String s: inputCommands) {
 			fileOut.write((s + "\n").getBytes());
 		}
 		if(fileOut != null)
 		fileOut.close();
+	}
+
+	/**
+	 * debug(String) Displays debug information for the specified context. A valid context can be Game_Enemy, GameItem, GameObject, GameRoom, GameSpell, GameState
+	 * @param context
+	 */
+	private static String debug(String context) {
+		String debugString = "";
+		if(context == "GameState") {
+			debugString = debug();
+		} else {
+			switch (context) {
+			case "enemy": case "gameenemy": case "game_enemy":
+				if(GameEnemy.enemies != null && !GameEnemy.enemies.isEmpty()) {
+					for(GameEnemy e: GameEnemy.enemies.values()) {
+						debugString += e.name.toUpperCase() + ": " + e.description + " - HP: " + e.currentHp + "\n";
+					}
+				} else {
+					debugString += "No ENEMYs in current Game files";
+				}
+				break;
+			case "item": case "gameitem": case "game_item":
+				if(GameItem.items != null && !GameItem.items.isEmpty()) {	
+					for(GameItem i: GameItem.items.values()) {
+						debugString += i.name.toUpperCase() + ": " + i.description + " - EquipSlot: " + i.equipSlot + "\n";
+					}
+				} else {
+					debugString += "No ITEMs in current Game files";
+				}
+				break;
+			case "object": case "gameobject": case "game_object":
+				if(GameObject.objects != null && !GameObject.objects.isEmpty()) {
+					for(GameObject o: GameObject.objects.values()) {
+						debugString += o.name.toUpperCase() + ": " + o.description + " - HP: " + o.currentHp + "\n";
+					}
+				} else {
+					debugString += "No OBJECTs in current Game files";
+				}
+				break;
+			case "room": case "gameroom": case "game_room":
+				if(GameRoom.rooms != null && !GameRoom.rooms.isEmpty()) {
+					for(GameRoom r: GameRoom.rooms.values()) {
+						debugString += r.roomId + ": " + r.description + "\n";
+					}
+				} else {
+					debugString += "No ROOMs in current Game files";
+				}
+				break;
+			case "spell": case "gamespell": case "game_spell":
+				if(GameSpell.spells != null && !GameSpell.spells.isEmpty()) {
+					for(GameSpell s: GameSpell.spells.values()) {
+						debugString += s.name.toUpperCase() + ": " + s.description + " - SP Cost: " + s.spellPointCost + "\n";
+					}
+				} else {
+					debugString += "NONE";
+				}
+				break;
+			case "prefix": case "gameprefix": case "game_prefix": case "gameitemprefix": case "game_item_prefix":
+				if(GameItemModifier.modifierTemplates != null && !GameItemModifier.modifierTemplates.isEmpty()) {
+					for(GameItemModifier p: GameItemModifier.modifierTemplates.values()) {
+						debugString += p.name.toUpperCase() + ": " + p.itemType + ", Value: " + p.baseValueAdd;
+					}
+				} else {
+					debugString += "No ITEM PREFIXes in current Game files";
+				}
+				break;
+			case "suffix": case "gamesuffix": case "game_suffix": case "gameitemsuffix": case "game_item_suffix":
+				if(GameItemSuffix.suffixes != null && !GameItemSuffix.suffixes.isEmpty()) {
+					for(GameItemSuffix p: GameItemSuffix.suffixes.values()) {
+						debugString += p.name.toUpperCase() + ": " + p.itemType + ", Value: " + p.baseValueAdd;
+					}
+				} else {
+					debugString += "No ITEM SUFFIXes in current Game files";
+				}
+				break;
+			default:
+				debugString += "Unknown context for DEBUG: " + context.toUpperCase();
+				break;
+			}
+		}
+		return debugString;
 	}
 
 	/**
@@ -639,347 +699,6 @@ public class CommandLineInterface {
 			debugString += "No Game Loaded";
 		}
 		return debugString;
-	}
-
-	/**
-	 * readFile(File) Translates the specified File into a 64-bit encoded byte array, to be written to disk
-	 * @param f The File to read
-	 * @return byte[] containing the contents of the File f
-	 * @throws IOException If the File can't be found, accessed, or read
-	 */
-	private static byte[] readFile(File f) throws IOException {
-		List<Byte> allBytes = new ArrayList<Byte>();
-		fileIn = new FileInputStream(f);
-		DataInputStream in = new DataInputStream(new BufferedInputStream(fileIn));
-		while(in.available() != 0) {
-			allBytes.add(in.readByte());
-		}
-		byte[] byteArray = new byte[allBytes.size()];
-		for(int i = 0; i < allBytes.size(); i++) {
-			byteArray[i] = allBytes.get(i);
-		}
-		in.close();
-		fileIn.close();
-		return byteArray;
-	}
-
-	/**
-	 * compress(byte[]) Compresses an array of bytes<br>
-	 * Compression / Decompression methods are not my original work. These were developed and published<br>
-	 * BY: Ralf Quebbemann<br>
-	 * AT: https://dzone.com/articles/how-compress-and-uncompress
-	 * @param data The byte array to compress
-	 * @return A compressed version of the input byte array
-	 * @throws IOException
-	 */
-	private static byte[] compress(byte[] data) throws IOException {
-		Deflater deflater = new Deflater();
-		deflater.setLevel(Deflater.BEST_COMPRESSION);//Added to maximize the compression (save the most disk space possible)
-		deflater.setInput(data);
-		ByteArrayOutputStream outputStream = new ByteArrayOutputStream(
-				data.length);
-		deflater.finish();
-		byte[] buffer = new byte[1024];
-		while (!deflater.finished()) {
-			int count = deflater.deflate(buffer); // returns the generated code... index
-			outputStream.write(buffer, 0, count);
-		}
-		outputStream.close();
-		byte[] output = outputStream.toByteArray();
-//		System.out.println("Original: " + data.length);
-//		System.out.println("Compressed: " + output.length);
-		return output;
-	}
-
-	/**
-	 * decompress(byte[]) Decompresses an array of bytes<br>
-	 * Compression / Decompression methods are not my original work. These were developed and published<br>
-	 * BY: Ralf Quebbemann<br>
-	 * AT: https://dzone.com/articles/how-compress-and-uncompress
-	 * @param data The byte array to decompress
-	 * @return A decompressed version of the input byte array
-	 * @throws IOException
-	 * @throws DataFormatException
-	 */
-	private static byte[] decompress(byte[] data) throws IOException, DataFormatException {
-		Inflater inflater = new Inflater();
-		inflater.setInput(data);
-		ByteArrayOutputStream outputStream = new ByteArrayOutputStream(
-				data.length);
-		byte[] buffer = new byte[1024];
-		while (!inflater.finished()) {
-			int count = inflater.inflate(buffer);
-			outputStream.write(buffer, 0, count);
-		}
-		outputStream.close();
-		byte[] output = outputStream.toByteArray();
-//		System.out.println("Original: " + data.length);
-//		System.out.println("Uncompressed: " + output.length);
-		return output;
-	}
-
-	/**
-	 * debug(String) Displays debug information for the specified context. A valid context can be Game_Enemy, GameItem, GameObject, GameRoom, GameSpell, GameState
-	 * @param context
-	 */
-	private static String debug(String context) {
-		String debugString = "";
-		if(context == "GameState") {
-			debugString = debug();
-		} else {
-			switch (context) {
-			case "enemy": case "gameenemy": case "game_enemy":
-				if(GameEnemy.enemies != null && !GameEnemy.enemies.isEmpty()) {
-					for(GameEnemy e: GameEnemy.enemies.values()) {
-						debugString += e.name.toUpperCase() + ": " + e.description + " - HP: " + e.currentHp + "\n";
-					}
-				} else {
-					debugString += "No ENEMYs in current Game files";
-				}
-				break;
-			case "item": case "gameitem": case "game_item":
-				if(GameItem.items != null && !GameItem.items.isEmpty()) {	
-					for(GameItem i: GameItem.items.values()) {
-						debugString += i.name.toUpperCase() + ": " + i.description + " - EquipSlot: " + i.equipSlot + "\n";
-					}
-				} else {
-					debugString += "No ITEMs in current Game files";
-				}
-				break;
-			case "object": case "gameobject": case "game_object":
-				if(GameObject.objects != null && !GameObject.objects.isEmpty()) {
-					for(GameObject o: GameObject.objects.values()) {
-						debugString += o.name.toUpperCase() + ": " + o.description + " - HP: " + o.currentHp + "\n";
-					}
-				} else {
-					debugString += "No OBJECTs in current Game files";
-				}
-				break;
-			case "room": case "gameroom": case "game_room":
-				if(GameRoom.rooms != null && !GameRoom.rooms.isEmpty()) {
-					for(GameRoom r: GameRoom.rooms.values()) {
-						debugString += r.roomId + ": " + r.description + "\n";
-					}
-				} else {
-					debugString += "No ROOMs in current Game files";
-				}
-				break;
-			case "spell": case "gamespell": case "game_spell":
-				if(GameSpell.spells != null && !GameSpell.spells.isEmpty()) {
-					for(GameSpell s: GameSpell.spells.values()) {
-						debugString += s.name.toUpperCase() + ": " + s.description + " - SP Cost: " + s.spellPointCost + "\n";
-					}
-				} else {
-					debugString += "NONE";
-				}
-				break;
-			case "prefix": case "gameprefix": case "game_prefix": case "gameitemprefix": case "game_item_prefix":
-				if(GameItemPrefix.prefixes != null && !GameItemPrefix.prefixes.isEmpty()) {
-					for(GameItemPrefix p: GameItemPrefix.prefixes.values()) {
-						debugString += p.name.toUpperCase() + ": " + p.itemType + ", Value: " + p.baseValueAdd;
-					}
-				} else {
-					debugString += "No ITEM PREFIXes in current Game files";
-				}
-				break;
-			case "suffix": case "gamesuffix": case "game_suffix": case "gameitemsuffix": case "game_item_suffix":
-				if(GameItemSuffix.suffixes != null && !GameItemSuffix.suffixes.isEmpty()) {
-					for(GameItemSuffix p: GameItemSuffix.suffixes.values()) {
-						debugString += p.name.toUpperCase() + ": " + p.itemType + ", Value: " + p.baseValueAdd;
-					}
-				} else {
-					debugString += "No ITEM SUFFIXes in current Game files";
-				}
-				break;
-			default:
-				debugString += "Unknown context for DEBUG: " + context.toUpperCase();
-				break;
-			}
-		}
-		return debugString;
-	}
-
-	/**
-	 * loadTemplates Initializes the Game World. Loads into memory all persisted GameEnemy, GameItem, GameObject, GameRoom, GameSpell
-	 * @throws IOException If the File is not found, not readable, etc.
-	 * @throws DataFormatException 
-	 */
-	private static void loadTemplates() throws IOException, DataFormatException {
-		File resourceFilePath = new File("./res");
-		if(resourceFilePath.exists() && resourceFilePath.isDirectory()) {
-			File[] resourceFiles = resourceFilePath.listFiles();
-			for(File f: resourceFiles) {
-				byte[] fileData = null;
-				switch (f.getName()) {
-				case "GameEnemy":
-					fileData = decompress(readFile(f));
-					fileData = Base64.getDecoder().decode(fileData);
-					String[] enemyData = new String(fileData).split("¦");
-					for(String s: enemyData) {
-						GameEnemy.parseBytes(s.getBytes());
-					}
-					break;
-				case "GameItem":
-					fileData = decompress(readFile(f));
-					fileData = Base64.getDecoder().decode(fileData);
-					String[] itemData = new String(fileData).split("¦");
-					for(String s: itemData) {
-						GameItem.parseBytes(s.getBytes());
-					}
-					break;
-				case "GameItemPrefix":
-					fileData = decompress(readFile(f));
-					fileData = Base64.getDecoder().decode(fileData);
-					String[] prefixData = new String(fileData).split("¦");
-					for(String s: prefixData) {
-						GameItemPrefix.parseBytes(s.getBytes());
-					}
-					break;
-				case "GameItemSuffix":
-					fileData = decompress(readFile(f));
-					fileData = Base64.getDecoder().decode(fileData);
-					String[] suffixData = new String(fileData).split("¦");
-					for(String s: suffixData) {
-						GameItemSuffix.parseBytes(s.getBytes());
-					}
-					break;
-				case "GameObject":
-					fileData = decompress(readFile(f));
-					fileData = Base64.getDecoder().decode(fileData);
-					String[] objectData = new String(fileData).split("¦");
-					for(String s: objectData) {
-						GameObject.parseBytes(s.getBytes());
-					}
-					break;
-				case "GameRoom":
-					fileData = decompress(readFile(f));
-					fileData = Base64.getDecoder().decode(fileData);
-					String[] roomData = new String(fileData).split("¦");
-					for(String s: roomData) {
-						GameRoom.parseBytes(s.getBytes());
-					}
-					break;
-				case "GameSpell":
-					fileData = decompress(readFile(f));
-					fileData = Base64.getDecoder().decode(fileData);
-					String[] spellData = new String(fileData).split("¦");
-					for(String s: spellData) {
-						GameSpell.parseBytes(s.getBytes());
-					}
-					break;
-				default:
-					System.out.println("Resource File not recognized: " + f.getName());
-					break;
-				}
-			}
-		} else {
-			System.out.println("No resources to load. Skipping...");
-		}	
-	}
-
-	/**
-	 * saveTemplates() Saves all in-memory resources to their respective resourceFile
-	 * @throws IOException If file is not found, is unreadable, etc.
-	 */
-	private static void saveTemplates() throws IOException {
-		if(GameEnemy.enemies != null && !GameEnemy.enemies.isEmpty()) {
-			List<GameEnemy> enemies = new ArrayList<GameEnemy>();
-			enemies.addAll(GameEnemy.enemies.values());
-			String dataString = "";
-			for(int i = 0; i < enemies.size(); i++) {
-				dataString += enemies.get(i).getByteString();
-				if(i != enemies.size() - 1) {
-					dataString += "¦";//separate individual entries
-				}
-			}
-			fileOut = new FileOutputStream("./res/GameEnemy");
-			fileOut.write(compress(Base64.getEncoder().encode(dataString.getBytes())));
-			fileOut.close();
-		}
-		if(GameItem.items != null && !GameItem.items.isEmpty()) {
-			List<GameItem> items = new ArrayList<GameItem>();
-			items.addAll(GameItem.items.values());
-			String dataString = "";
-			for(int i = 0; i < items.size(); i++) {
-				dataString += items.get(i).getByteString();
-				if(i != items.size() - 1) {
-					dataString += "¦";//separate individual entries
-				}
-			}
-			fileOut = new FileOutputStream("./res/GameItem");
-			fileOut.write(compress(Base64.getEncoder().encode(dataString.getBytes())));
-			fileOut.close();
-		}
-		if(GameItemPrefix.prefixes != null && !GameItemPrefix.prefixes.isEmpty()) {
-			List<GameItemPrefix> prefixes = new ArrayList<GameItemPrefix>();
-			prefixes.addAll(GameItemPrefix.prefixes.values());
-			String dataString = "";
-			for(int i = 0; i < prefixes.size(); i++) {
-				dataString += prefixes.get(i).getByteString();
-				if(i != prefixes.size() - 1) {
-					dataString += "¦";//separate individual entries
-				}
-			}
-			fileOut = new FileOutputStream("./res/GameItemPrefix");
-			fileOut.write(compress(Base64.getEncoder().encode(dataString.getBytes())));
-			fileOut.close();
-		}
-		if(GameItemSuffix.suffixes != null && !GameItemSuffix.suffixes.isEmpty()) {
-			List<GameItemSuffix> suffixes = new ArrayList<GameItemSuffix>();
-			suffixes.addAll(GameItemSuffix.suffixes.values());
-			String dataString = "";
-			for(int i = 0; i < suffixes.size(); i++) {
-				dataString += suffixes.get(i).getByteString();
-				if(i != suffixes.size() - 1) {
-					dataString += "¦";//separate individual entries
-				}
-			}
-			fileOut = new FileOutputStream("./res/GameItemSuffix");
-			fileOut.write(compress(Base64.getEncoder().encode(dataString.getBytes())));
-			fileOut.close();
-		}
-		if(GameObject.objects != null && !GameObject.objects.isEmpty()) {
-			List<GameObject> objects = new ArrayList<GameObject>();
-			objects.addAll(GameObject.objects.values());
-			String dataString = "";
-			for(int i = 0; i < objects.size(); i++) {
-				dataString += objects.get(i).getByteString();
-				if(i != objects.size() - 1) {
-					dataString += "¦";//separate individual entries
-				}
-			}
-			fileOut = new FileOutputStream("./res/GameObject");
-			fileOut.write(compress(Base64.getEncoder().encode(dataString.getBytes())));
-			fileOut.close();
-		}
-		if(GameRoom.rooms != null && !GameRoom.rooms.isEmpty()) {
-			List<GameRoom> rooms = new ArrayList<GameRoom>();
-			rooms.addAll(GameRoom.rooms.values());
-			String dataString = "";
-			for(int i = 0; i < rooms.size(); i++) {
-				dataString += rooms.get(i).getByteString();
-				if(i != rooms.size() - 1) {
-					dataString += "¦";//separate individual entries
-				}
-			}
-			fileOut = new FileOutputStream("./res/GameRoom");
-			fileOut.write(compress(Base64.getEncoder().encode(dataString.getBytes())));
-			fileOut.close();
-		}
-		if(GameSpell.spells != null && !GameSpell.spells.isEmpty()) {
-			List<GameSpell> spells = new ArrayList<GameSpell>();
-			spells.addAll(GameSpell.spells.values());
-			String dataString = "";
-			for(int i = 0; i < spells.size(); i++) {
-				dataString += spells.get(i).getByteString();
-				if(i != spells.size() - 1) {
-					dataString += "¦";//separate individual entries
-				}
-			}
-			fileOut = new FileOutputStream("./res/GameSpell");
-			fileOut.write(compress(Base64.getEncoder().encode(dataString.getBytes())));
-			fileOut.close();
-		}
 	}
 
 	/**
@@ -1093,7 +812,7 @@ public class CommandLineInterface {
 						doLookup = false;
 						inRoomMode = false;
 						System.out.println("-- EXITING GameRoom MODIFICATION MODE --");
-					} else if(contentString.matches("\\d+.*")) {//DIGITS only
+					} else if(contentString.matches("\\d+")) {//DIGITS only
 						String[] tokens = contentString.split("\\s+");
 						room = GameRoom.lookup(Integer.parseInt(tokens[0]));
 						if(room == null) {
@@ -1411,7 +1130,7 @@ public class CommandLineInterface {
 																zPos = Integer.parseInt(contentString);
 																if(room.height >= zPos && zPos > 0) {
 																	System.out.println("Z coordinate set to " + zPos + ".");
-																	//index = (xPos * width * height) + (yPos * height) + zPos, WHERE x ~ length && y ~ width && z ~ height
+																	//index = (zPos * width * length) + (yPos * length) + xPos, WHERE x = length && y = width && z = height
 																	volumeToEdit = room.interior.get(((zPos - 1) * room.width * room.length) + ((yPos - 1) * room.length) + (xPos - 1));
 																	gotVolume = true;
 																} else {
@@ -1797,7 +1516,7 @@ public class CommandLineInterface {
 					if(isEdit) {
 						System.out.println("Currently unable to EDIT the name of an OBJECT after it is SAVEd");
 					} else {
-						object.name = contentString.toLowerCase();//TODO: manage multi-word names for OBJECTs, etc.
+						object.name = contentString.toLowerCase();
 						System.out.println("OBJECT name set to " + contentString);
 					}
 					break;
@@ -2087,7 +1806,7 @@ public class CommandLineInterface {
 		} else {//NEW ENEMY mode
 			enemy = new GameEnemy();
 		}
-		while (inEnemyMode) {
+		while (inEnemyMode) {//TODO: add new fields
 			System.out.println("Edit:\t[N]ame\t[D]escription\t[C]urrent HP\t[M]ax HP\t[H]eld Item\tXP [V]alue\t[I]tems\t[A]rmor Class\tDamage [R]eduction\te[X]it");
 			contentString = sanitize(sc.nextLine());
 			if(contentString.matches("\\w+")) {
@@ -2119,7 +1838,7 @@ public class CommandLineInterface {
 					if(isEdit) {
 						System.out.println("Currently unable to EDIT the name of an ENEMY after it is SAVEd");
 					} else {
-						enemy.name = contentString.toLowerCase();//TODO: manage multi-word names for ENEMIES, etc.
+						enemy.name = contentString.toLowerCase();
 						System.out.println("ENEMY name set to " + contentString);
 					}
 					break;
@@ -2343,6 +2062,7 @@ public class CommandLineInterface {
 						System.out.println("Bad input: " + contentString.toUpperCase());
 					}
 					break;
+				//TODO: add new fields here
 				default:
 					System.out.println("Bad input: " + contentString.toUpperCase());
 					break;
@@ -2425,7 +2145,7 @@ public class CommandLineInterface {
 			System.out.println("Edit:\t[N]ame\t[W]eight\t[V]alue\t[Q]uantity\t[R]emaining [U]ses\t[M]ax [U]ses\t[O]wner\t[D]escription\t[DMG]\t[E]quip [S]lot"
 					+ "\t[EQ]uipped\n\t[AC]\t[DR]\t[M]agic [R]esistance\t[HP]\t[SP]\tAttac[K] [B]onus (Melee)\tAttac[K] Bonus ([R]anged)\tAttac[K] Bonus ([M]agic)"
 					+ "\n\t[BR]eakable\t[C]urrent [D]urability\t[M]ax [D]urability\t[A]ttack [T]ype\tMi[N] [R]ange\tMa[X] [R]ange\t[R]each [D]istance"
-					+ "\t[D]amage [T]ype\te[X]it");
+					+ "\t[D]amage [T]ype\te[X]it");//TODO: add new fields here
 			contentString = sanitize(sc.nextLine());
 			if(contentString.matches("\\w+")) {
 				switch (contentString) {
@@ -2456,7 +2176,7 @@ public class CommandLineInterface {
 					if(isEdit) {
 						System.out.println("Currently unable to EDIT the name of an ITEM after it is SAVEd");
 					} else {
-						item.name = contentString.toLowerCase();//TODO: manage multi-word names for ITEMs, etc.
+						item.name = contentString.toLowerCase();
 						System.out.println("ITEM name set to " + contentString);
 					}
 					break;
@@ -2565,18 +2285,18 @@ public class CommandLineInterface {
 					item.description = contentString;
 					System.out.println("Description set to \"" + contentString + "\"");
 					break;
-				case "dmg"://damageDealt
-					System.out.println("Current Damage:");
-					System.out.println(item.damageDealt);
-					System.out.println("Enter new Damage:");
+				case "dmg"://damageDie
+					System.out.println("Current Base Damage Die:");
+					System.out.println(item.damageDie);
+					System.out.println("Enter new value for Base Damage Die:");
 					contentString = sanitize(sc.nextLine());
 					if(contentString.matches("\\d+")) {
-						int damageDealt = Integer.parseInt(contentString);
-						if(damageDealt >= 0) {
-							item.damageDealt = damageDealt;
-							System.out.println("Damage set to " + damageDealt);
+						int damageDie = Integer.parseInt(contentString);
+						if(damageDie >= 0) {
+							item.damageDie = damageDie;
+							System.out.println("Base Damage Die value set to " + damageDie);
 						} else {
-							System.out.println("Value not valid: " + damageDealt);
+							System.out.println("Value not valid: " + damageDie);
 						}
 					} else {
 						System.out.println("Bad input: " + contentString.toUpperCase());
@@ -2587,7 +2307,8 @@ public class CommandLineInterface {
 					equipSlots.add(GameItem.AMULET);equipSlots.add(GameItem.BACK);equipSlots.add(GameItem.BELT);equipSlots.add(GameItem.BOOTS);
 					equipSlots.add(GameItem.CLOAK);equipSlots.add(GameItem.CUIRASS);equipSlots.add(GameItem.EARRING);equipSlots.add(GameItem.GAUNTLETS);
 					equipSlots.add(GameItem.GREAVES);equipSlots.add(GameItem.HELM);equipSlots.add(GameItem.MAIN_HAND);equipSlots.add(GameItem.OFF_HAND);
-					equipSlots.add(GameItem.PANTS);equipSlots.add(GameItem.RING);equipSlots.add(GameItem.SHIRT);equipSlots.add(GameItem.SHOES);
+					equipSlots.add(GameItem.TWO_HAND);equipSlots.add(GameItem.PANTS);equipSlots.add(GameItem.RING);equipSlots.add(GameItem.SHIRT);
+					equipSlots.add(GameItem.SHOES);
 					System.out.println("Current Equip Slot:");
 					System.out.println(item.equipSlot);
 					System.out.println("Enter new Equip Slot:");
@@ -2874,6 +2595,7 @@ public class CommandLineInterface {
 						System.out.println("Bad input: " + contentString.toUpperCase());
 					}
 					break;
+				//TODO: add new fields here
 				default:
 					System.out.println("Bad input: " + contentString.toUpperCase());
 					break;
@@ -3171,7 +2893,7 @@ public class CommandLineInterface {
 	 * @param object The target of the attack
 	 * @return The outcome of the attack attempt
 	 */
-	private static String attack(String object) {
+	private static String attack(String object) {//TODO: implement check for if IN-GAME or not for all IN-GAME only commands!
 		String attackString = "";
 		if(gameState.inInventory) {//if Player is looking at their inventory
 			if(gameState.inventory.containsKey(object)) {//if the inventory contains the object specified
@@ -3179,7 +2901,7 @@ public class CommandLineInterface {
 			}
 		} else if(GameEnemy.enemies != null && GameEnemy.enemies.containsKey(object)) {//if the object specified is a GameEnemy
 			if(gameState.visitedRooms.get(gameState.currentRoomId).containsEnemy(object)) {//if the current Room contains the Enemy
-				int attackRoll = rollDie(20,gameState.attackBonusMelee,true);
+				int attackRoll = GameUtility.rollDie(20,gameState.attackBonusMelee,true);
 				GameRoom room = gameState.visitedRooms.get(gameState.currentRoomId);
 				GameVolume thisVolume = room.interior.get(gameState.roomVolumeIndex);//get the GameVolume the player is in
 				List<GameVolume> volumes = room.getAllVolumesContainingEnemy(object);
@@ -3201,7 +2923,8 @@ public class CommandLineInterface {
 					mapKeys.addAll(foundEnemies.keySet());
 					while(!gotEnemy) {//while no individual GameEnemy is specified as TARGET
 						System.out.println("Choose which ENEMY, by it's ID, you want to ATTACK (or X to EXIT):");//ask which Enemy to target
-						System.out.println(" ID |Enemy Details");
+						int len = GameUtility.getPrintedLength(mapKeys.size());
+						System.out.println(String.format("%"+len+"."+len+"s|Enemy Details","#"));
 						for(int i = 0; i < mapKeys.size(); i++) {//for each mapping...
 							String s = mapKeys.get(i);
 							int vIndex = Integer.parseInt(s.substring(0,s.indexOf('-')));//get the index of the GameVolume for the specified GameEnemy
@@ -3209,7 +2932,8 @@ public class CommandLineInterface {
 							double distance = GameState.distanceBetween(thisVolume,v);//calculate how far from the player the specified GameEnemy is
 							byte direction = GameState.getGeneralTraversalDirection(thisVolume,v);//get the general direction in which the GameEnemy is, in relation to the player
 							GameEnemy e = foundEnemies.get(mapKeys.get(i));//get the GameEnemy specified
-							System.out.println(String.format("%-4d%s%s%s%d%s%d%s%.2f%s%s",i,": ",e.name.toUpperCase(),", ",e.currentHp,"/",e.maxHp,"HP - ",distance," meters, ",GameState.getDirectionName(direction)));
+							System.out.println(String.format("[%"+len+"."+len+"s]: %s, %d/%dHP - %.2f meters, %s",1,e.name.toUpperCase(),e.currentHp,e.maxHp,distance,GameState.getDirectionName(direction)));
+//							System.out.println(String.format("%-4d%s%s%s%d%s%d%s%.2f%s%s",i,": ",e.name.toUpperCase(),", ",e.currentHp,"/",e.maxHp,"HP - ",distance," meters, ",GameState.getDirectionName(direction)));
 						}
 						String input = sanitize(sc.nextLine());
 						if(input.equals("x")) {
@@ -3235,21 +2959,30 @@ public class CommandLineInterface {
 					}
 				} else {//only 1 GameEnemy in the GameRoom of specified type
 					targetEnemy = foundEnemies.values().iterator().next();//get first (and only) enemy in List
+					targetVolume = volumes.get(0);
+					enemyIndex = 0;
+					volumeIndex = 0;
 				}
-				if(GameState.equipSlot_MAIN_HAND != null) {//if the Player has an ITEM equipped
+				if(gameState.equipSlot_MAIN_HAND != null || gameState.equipSlot_TWO_HAND != null) {//if the Player has an ITEM equipped
+					GameItem item = gameState.equipSlot_TWO_HAND;
+					if(item == null) {
+						item = gameState.equipSlot_MAIN_HAND;
+					}
 					if(attackRoll == -1) {//CRIT_FAIL
-						attackString = "You swing wildly at " + object.toUpperCase() + ", but manage to DROP your " + GameState.equipSlot_MAIN_HAND.name.toUpperCase() + " on the ground.";//TODO: change to GameItem.onFail
+						attackString = "You swing wildly at " + object.toUpperCase() + ", but manage to DROP your " + item.name.toUpperCase() + " on the ground.";//TODO: change to GameItem.onFail
 						//System.out.println(drop(GameState.equipSlot_MAIN_HAND.name));//drop item without the extra text notification
-						GameItem droppedItem = GameState.equipSlot_MAIN_HAND;
-						droppedItem.isEquipped = false;
-						thisVolume.addItem(droppedItem);
+//						GameItem droppedItem = GameState.equipSlot_TWO_HAND;
+						item.isEquipped = false;
+						thisVolume.addItem(item);
 						room.interior.set(gameState.roomVolumeIndex,thisVolume);
-						GameState.equipSlot_MAIN_HAND = null;
-						gameState.currentWeight -= droppedItem.getTotalWeight();
+						gameState.equipSlot_MAIN_HAND = null;
+						gameState.equipSlot_TWO_HAND = null;
+						gameState.currentWeight -= item.getTotalWeight();
 						gameState.visitedRooms.replace(gameState.currentRoomId,room);
 					} else if(attackRoll == 999) {//CRIT_SUCCESS
-						targetEnemy.currentHp -= ((GameState.equipSlot_MAIN_HAND.damageDealt * 2) - targetEnemy.damageReduction);
-						attackString = "You bring down your " + GameState.equipSlot_MAIN_HAND.name.toUpperCase() + " on " + object.toUpperCase() + " with a mighty blow.";//TODO: change to GameItem.onCrit
+						int damageDealt = GameItem.calculateDamage(item) * 2 + item.bonusDamage;
+						targetEnemy.currentHp -= (damageDealt - targetEnemy.damageReduction);
+						attackString = "You bring down your " + item.name.toUpperCase() + " on " + object.toUpperCase() + " with a mighty blow, dealing " + damageDealt + "points of damage.";//TODO: change to GameItem.onCrit
 						if(targetEnemy.currentHp <= 0) {//enemy is slain
 							//TODO: implement degrees of dead-ness maybe?
 							attackString += "\n" + object.toUpperCase() + " falls down dead.";
@@ -3276,9 +3009,10 @@ public class CommandLineInterface {
 						}
 						room.interior.set(((targetVolume.zPos - 1) * room.width * room.length) + ((targetVolume.yPos - 1) * room.length) + (targetVolume.xPos - 1),targetVolume);
 						gameState.visitedRooms.replace(gameState.currentRoomId,room);
-					} else if(attackRoll > targetEnemy.armorClass) {//the attack hits
-						targetEnemy.currentHp -= ((GameState.equipSlot_MAIN_HAND.damageDealt * 2) - targetEnemy.damageReduction);
-						attackString = "You strike " + object.toUpperCase() + " with a well-placed blow of your " + GameState.equipSlot_MAIN_HAND.name.toUpperCase() + ".";
+					} else if(attackRoll >= targetEnemy.armorClass) {//the attack hits
+						int damageDealt = GameItem.calculateDamage(item) * 2 + item.bonusDamage;
+						targetEnemy.currentHp -= (damageDealt - targetEnemy.damageReduction);
+						attackString = "You strike " + object.toUpperCase() + " with a well-placed blow of your " + item.name.toUpperCase() + ", dealing " + damageDealt + "points of damage.";
 						if(targetEnemy.currentHp <= 0) {//enemy is slain
 							//TODO: implement degrees of dead-ness maybe
 							attackString += "\n" + object.toUpperCase() + " falls down dead.";
@@ -3306,7 +3040,7 @@ public class CommandLineInterface {
 						room.interior.set(((targetVolume.zPos - 1) * room.width * room.length) + ((targetVolume.yPos - 1) * room.length) + (targetVolume.xPos - 1),targetVolume);
 						gameState.visitedRooms.replace(gameState.currentRoomId,room);
 					} else {//the attack does not hit
-						attackString = "You swing your " + GameState.equipSlot_MAIN_HAND.name.toUpperCase() + " at " + object.toUpperCase();
+						attackString = "You swing your " + item.name.toUpperCase() + " at " + object.toUpperCase();
 						int missInterval = (targetEnemy.armorClass - attackRoll) % targetEnemy.armorClass;
 						if(missInterval <= targetEnemy.armorClass * 0.25) {//not a terrible miss
 							attackString += ", but " + object.toUpperCase() + " sidesteps the blow.";
@@ -3322,9 +3056,27 @@ public class CommandLineInterface {
 					if(attackRoll == -1) {//CRIT_FAIL
 						attackString = "Your swing wildly with your FIST at " + object.toUpperCase() + ", but manage only an awkward slap.";
 					} else if(attackRoll == 999) {//CRIT_SUCCESS
-						attackString = "You bring down your FIST on " + object.toUpperCase() + " with a mighty blow, but do no damage.";
-					} else if(attackRoll > targetEnemy.armorClass) {//the attack hits
-						attackString = "You strike " + object.toUpperCase() + " with a well-placed punch, but do no damage.";
+						attackString = "You bring down your FIST on " + object.toUpperCase() + " with a mighty blow, ";
+						if(gameState.attackBonusMelee > 0) {
+							int damage = 0;//1 + your Strength modifier bludgeon (PHB, 195) //I changed this to (attackBonusMelee)d4
+							for(int i = 0; i < gameState.attackBonusMelee; i++) {
+								damage += GameUtility.rollDie(4,0,false);
+							}
+							attackString += "dealing " + damage + " damage.";
+						} else {
+							attackString += "but do no damage.";
+						}
+					} else if(attackRoll >= targetEnemy.armorClass) {//the attack hits
+						attackString = "You strike " + object.toUpperCase() + " with a well-placed punch, ";
+						if(gameState.attackBonusMelee > 0) {
+							int damage = 0;//1 + your Strength modifier bludgeon (PHB, 195) //I changed this to (attackBonusMelee)d4
+							for(int i = 0; i < gameState.attackBonusMelee; i++) {
+								damage += GameUtility.rollDie(4,0,false);
+							}
+							attackString += "dealing " + damage + " damage.";
+						} else {
+							attackString += "but do no damage.";
+						}
 					} else {//the attack does not hit
 						attackString = "You swing your FIST at " + object.toUpperCase();
 						int missInterval = (targetEnemy.armorClass - attackRoll) % targetEnemy.armorClass;
@@ -3343,7 +3095,7 @@ public class CommandLineInterface {
 				attackString = "You don't see any " + object.toUpperCase() + " to ATTACK.";
 			}
 		} else if(GameObject.objects != null && GameObject.objects.containsKey(object)) {//if the object is a GameObject
-			if(GameRoom.lookup(gameState.currentRoomId).containsObject(object)) {//if the current Room contains the Object
+			if(gameState.visitedRooms.get(gameState.currentRoomId).containsObject(object)) {//if the current Room contains the Object
 				//no need to roll for attack on an Object
 				GameRoom room = gameState.visitedRooms.get(gameState.currentRoomId);
 				GameVolume thisVolume = room.interior.get(gameState.roomVolumeIndex);//get the GameVolume the player is in
@@ -3400,10 +3152,18 @@ public class CommandLineInterface {
 					}
 				} else {//only 1 GameObject in the GameRoom of specified type
 					targetObject = foundObjects.values().iterator().next();//get first (and only) object in List
+					targetVolume = volumes.get(0);
+					objectIndex = 0;
+					volumeIndex = 0;
+				}
+				GameItem item = gameState.equipSlot_TWO_HAND;
+				if(item == null) {
+					item = gameState.equipSlot_MAIN_HAND;
 				}
 				if(targetObject.isBreakable) {//object can be broken
-					if(GameState.equipSlot_MAIN_HAND.damageDealt >= targetObject.currentHp) {//object is broken
-						attackString = "You smash " + object.toUpperCase() + " to pieces with your " + GameState.equipSlot_MAIN_HAND.name.toUpperCase() + ".";
+					int damageDealt = GameItem.calculateDamage(item) + item.bonusDamage;
+					if(damageDealt >= targetObject.currentHp) {//object is broken
+						attackString = "You smash " + object.toUpperCase() + " to pieces with your " + item.name.toUpperCase() + ", inflicting " + damageDealt + " points of damage.";
 //						targetObject.breakObject();//THIS DOES NOTHING RIGHT NOW
 						if(targetObject.contents != null && !targetObject.contents.isEmpty()) {
 							attackString += " It contained:";
@@ -3420,8 +3180,8 @@ public class CommandLineInterface {
 							targetVolume.objects.put(object,volumeObjects);
 						}
 					} else {//object is damaged, but not broken
-						attackString = "You hit " + object.toUpperCase() + " with your " + GameState.equipSlot_MAIN_HAND.name.toUpperCase();
-						targetObject.currentHp -= GameState.equipSlot_MAIN_HAND.damageDealt;
+						attackString = "You hit " + object.toUpperCase() + " with your " + item.name.toUpperCase() + " for " + damageDealt + " points of damage.";
+						targetObject.currentHp -= damageDealt;
 						List<GameObject> volumeObjects = targetVolume.objects.get(object);
 						volumeObjects.set(objectIndex,targetObject);
 						targetVolume.objects.replace(object,volumeObjects);
@@ -3430,13 +3190,13 @@ public class CommandLineInterface {
 					room.interior.set(((targetVolume.zPos - 1) * room.width * room.length) + ((targetVolume.yPos - 1) * room.length) + (targetVolume.xPos - 1),targetVolume);
 					gameState.visitedRooms.replace(gameState.currentRoomId,room);
 				} else {//object not breakable
-					attackString = "You hit " + object.toUpperCase() + " with your " + GameState.equipSlot_MAIN_HAND.name.toUpperCase() + ", but it makes no visible mark.";
+					attackString = "You hit " + object.toUpperCase() + " with your " + item.name.toUpperCase() + ", but it makes no visible mark.";
 				}
 			} else {//the Object is not in the Room
 				attackString = "You don't see any " + object.toUpperCase() + " to ATTACK.";
 			}
 		} else if(GameItem.items != null && GameItem.items.containsKey(object)) {//if the object specified is a GameItem
-			if(GameRoom.lookup(gameState.currentRoomId).containsItem(object)) {//if the current Room contains the Item
+			if(gameState.visitedRooms.get(gameState.currentRoomId).containsItem(object)) {//if the current Room contains the Item
 				//no need to roll for attack on an Item
 				GameRoom room = gameState.visitedRooms.get(gameState.currentRoomId);
 				GameVolume thisVolume = room.interior.get(gameState.roomVolumeIndex);//get the GameVolume the player is in
@@ -3493,12 +3253,19 @@ public class CommandLineInterface {
 					}
 				} else {//only 1 GameItem in the GameRoom of specified type
 					targetItem = foundItems.values().iterator().next();//get first (and only) item in List
+					targetVolume = volumes.get(0);
+					itemIndex = 0;
+					volumeIndex = 0;
 				}
-				if(GameState.equipSlot_MAIN_HAND.isBreakable) {//Item can be broken
-					int damageDealt = GameState.equipSlot_MAIN_HAND.damageDealt - targetItem.damageReduction;
+				GameItem item = gameState.equipSlot_TWO_HAND;
+				if(item == null) {
+					item = gameState.equipSlot_MAIN_HAND;
+				}
+				if(targetItem.isBreakable) {//Item can be broken
+					int damageDealt = GameItem.calculateDamage(item) + item.bonusDamage - targetItem.damageReduction;
 					if(targetItem.curDurability <= damageDealt) {//break it!
-						attackString = "You smash the " + object.toUpperCase() + " with your " + GameState.equipSlot_MAIN_HAND.name.toUpperCase() + ".";
-						targetItem.curDurability -= damageDealt;
+						attackString = "You smash the " + object.toUpperCase() + " with your " + item.name.toUpperCase() + " for " + damageDealt + " points of damage.";
+//						targetItem.curDurability -= damageDealt;
 //						attackItem.breakItem();//TODO: determine if this method is worthwhile. Introduce a BROKEN version of the Item?
 						List<GameItem> volumeItems = targetVolume.items.get(object);
 						volumeItems.remove(itemIndex);
@@ -3509,7 +3276,7 @@ public class CommandLineInterface {
 						}
 					} else {//just damage it
 						targetItem.curDurability -= damageDealt;
-						attackString = "You hit the " + object.toUpperCase() + " with your " + GameState.equipSlot_MAIN_HAND.name.toUpperCase() + ", damaging it.";
+						attackString = "You hit the " + object.toUpperCase() + " with your " + item.name.toUpperCase() + ", damaging it by " + damageDealt + ".";
 						List<GameItem> volumeItems = targetVolume.items.get(object);
 						volumeItems.set(itemIndex,targetItem);
 						targetVolume.items.replace(object,volumeItems);
@@ -3518,7 +3285,7 @@ public class CommandLineInterface {
 					room.interior.set(((targetVolume.zPos - 1) * room.width * room.length) + ((targetVolume.yPos - 1) * room.length) + (targetVolume.xPos - 1),targetVolume);
 					gameState.visitedRooms.replace(gameState.currentRoomId, room);
 				} else {//Item can't be broken
-					attackString = "You hit the " + object.toUpperCase() + " with your " + GameState.equipSlot_MAIN_HAND.name.toUpperCase() + ", but cause no damage.";
+					attackString = "You hit the " + object.toUpperCase() + " with your " + item.name.toUpperCase() + ", but cause no damage.";
 				}
 			} else {//the Item is not in the Room
 				attackString = "You don't see any " + object.toUpperCase() + " to ATTACK.";
@@ -3584,7 +3351,8 @@ public class CommandLineInterface {
 								mapKeys.addAll(foundEnemies.keySet());
 								while(!gotEnemy) {//while no individual GameEnemy is specified as TARGET
 									System.out.println("Choose which ENEMY, by it's ID, you want to CAST " + spellName + " at (or X to EXIT):");//ask which Enemy to target
-									System.out.println(" ID |Enemy Details");
+									int len = GameUtility.getPrintedLength(mapKeys.size());
+									System.out.println(String.format("%"+len+"."+len+"s|Enemy Details","#"));
 									for(int i = 0; i < mapKeys.size(); i++) {//for each mapping...
 										String s = mapKeys.get(i);
 										int vIndex = Integer.parseInt(s.substring(0,s.indexOf('-')));//get the index of the GameVolume for the specified GameEnemy
@@ -3592,7 +3360,8 @@ public class CommandLineInterface {
 										double distance = GameState.distanceBetween(thisVolume,v);//calculate how far from the player the specified GameEnemy is
 										byte direction = GameState.getGeneralTraversalDirection(thisVolume,v);//get the general direction in which the GameEnemy is, in relation to the player
 										GameEnemy e = foundEnemies.get(mapKeys.get(i));//get the GameEnemy specified
-										System.out.println(String.format("%-4d%s%s%s%d%s%d%s%.2f%s%s",i,": ",e.name.toUpperCase(),", ",e.currentHp,"/",e.maxHp,"HP - ",distance," meters, ",GameState.getDirectionName(direction)));
+										System.out.println(String.format("[%"+len+"."+len+"s]: %s, %d/%dHP - %.2f meters, %s",1,e.name.toUpperCase(),e.currentHp,e.maxHp,distance,GameState.getDirectionName(direction)));
+//										System.out.println(String.format("%-4d%s%s%s%d%s%d%s%.2f%s%s",i,": ",e.name.toUpperCase(),", ",e.currentHp,"/",e.maxHp,"HP - ",distance," meters, ",GameState.getDirectionName(direction)));
 									}
 									String input = sanitize(sc.nextLine());
 									if(input.equals("x")) {
@@ -3618,10 +3387,13 @@ public class CommandLineInterface {
 								}
 							} else {//only 1 GameEnemy in the GameRoom of specified type
 								targetEnemy = foundEnemies.values().iterator().next();//get first (and only) enemy in List
+								targetVolume = volumes.get(0);
+								enemyIndex = 0;
+								volumeIndex = 0;
 							}
 							GameSpell spell = gameState.spellbook.get(spellName);
 							if(gameState.currentSp >= spell.spellPointCost) {//Player has sufficient SP to CAST the Spell
-								int attackRoll = rollDie(20,gameState.attackBonusMagic,true);
+								int attackRoll = GameUtility.rollDie(20,gameState.attackBonusMagic,true);
 								int damageDealt;
 								if(attackRoll == -1) {//crit FAIL
 									castString = "You attempt to CAST " + spellName.toUpperCase() + ", but the Spell fizzles and pops embarassingly.";
@@ -3727,11 +3499,14 @@ public class CommandLineInterface {
 								}
 							} else {//only 1 GameObject in the GameRoom of specified type
 								targetObject = foundObjects.values().iterator().next();//get first (and only) object in List
+								targetVolume = volumes.get(0);
+								objectIndex = 0;
+								volumeIndex = 0;
 							}
 							GameSpell spell = gameState.spellbook.get(spellName);
 							if(gameState.currentSp >= spell.spellPointCost) {//Player has sufficient SP to CAST the Spell
 								if(targetObject.isBreakable) {
-									int attackRoll = rollDie(20,gameState.attackBonusMagic,true);
+									int attackRoll = GameUtility.rollDie(20,gameState.attackBonusMagic,true);
 									int damageDealt;
 									if(attackRoll == -1) {//crit FAIL
 										castString = "You attempt to CAST " + spellName.toUpperCase() + ", but the Spell fizzles and pops embarassingly.";
@@ -3836,11 +3611,14 @@ public class CommandLineInterface {
 								}
 							} else {//only 1 GameItem in the GameRoom of specified type
 								targetItem = foundItems.values().iterator().next();//get first (and only) item in List
+								targetVolume = volumes.get(0);
+								itemIndex = 0;
+								volumeIndex = 0;
 							}
 							GameSpell spell = gameState.spellbook.get(spellName);
 							if(gameState.currentSp >= spell.spellPointCost) {//Player has sufficient SP to CAST the Spell
 								if(targetItem.isBreakable) {
-									int attackRoll = rollDie(20,gameState.attackBonusMagic,true);
+									int attackRoll = GameUtility.rollDie(20,gameState.attackBonusMagic,true);
 									int damageDealt;
 									if(attackRoll == -1) {//crit FAIL
 										castString = "You attempt to CAST " + spellName.toUpperCase() + ", but the Spell fizzles and pops embarassingly.";
@@ -3976,6 +3754,9 @@ public class CommandLineInterface {
 						}
 					} else {//only 1 GameObject in the GameRoom of specified type
 						roomObject = foundObjects.values().iterator().next();//get first (and only) object in List
+						targetVolume = volumes.get(0);
+						objectIndex = 0;
+						volumeIndex = 0;
 					}
 					if(roomObject.isContainer) {
 						if(roomObject.isOpen) {//if the Object is OPEN
@@ -4040,13 +3821,16 @@ public class CommandLineInterface {
 				dropString = "You drop the " + object.toUpperCase() + " on the ground.";
 				if(gameState.heldItem == droppedItem.name) {
 					gameState.heldItem = null;
-					if(GameState.equipSlot_MAIN_HAND.equals(droppedItem)) {
-						GameState.equipSlot_MAIN_HAND = null;
+					if(gameState.equipSlot_TWO_HAND.equals(droppedItem)) {
+						gameState.equipSlot_TWO_HAND = null;
 					}
-					if(GameState.equipSlot_OFF_HAND.equals(droppedItem)) {
-						GameState.equipSlot_OFF_HAND = null;
+					if(gameState.equipSlot_MAIN_HAND.equals(droppedItem)) {
+						gameState.equipSlot_MAIN_HAND = null;
 					}
-					if(GameState.equipSlot_MAIN_HAND == null && GameState.equipSlot_OFF_HAND == null && gameState.heldItem == null) {
+					if(gameState.equipSlot_OFF_HAND.equals(droppedItem)) {
+						gameState.equipSlot_OFF_HAND = null;
+					}
+					if(gameState.equipSlot_TWO_HAND == null && gameState.equipSlot_MAIN_HAND == null && gameState.equipSlot_OFF_HAND == null && gameState.heldItem == null) {
 						dropString+= " Your hands are now empty.";
 					}
 				}
@@ -4107,116 +3891,135 @@ public class CommandLineInterface {
 					itemToEquip.isEquipped = true;
 					switch (itemToEquip.equipSlot) {//figure out where the item should be equipped
 					case GameItem.BACK:
-						if(GameState.equipSlot_BACK != null) {//if another item is equipped here
-							GameState.equipSlot_BACK.isEquipped = false;//unequip that item first
+						if(gameState.equipSlot_BACK != null) {//if another item is equipped here
+							gameState.equipSlot_BACK.isEquipped = false;//unequip that item first
 						}
-						GameState.equipSlot_BACK = itemToEquip;//equip the new item
+						gameState.equipSlot_BACK = itemToEquip;//equip the new item
 						//TODO: implement GameItem.onEquip()
 						equipString = "You sling the " + object.toUpperCase() + " across your back.";
 						break;
 					case GameItem.BELT:
-						if(GameState.equipSlot_BELT != null) {
-							GameState.equipSlot_BELT.isEquipped = false;
+						if(gameState.equipSlot_BELT != null) {
+							gameState.equipSlot_BELT.isEquipped = false;
 						}
-						GameState.equipSlot_BELT = itemToEquip;
+						gameState.equipSlot_BELT = itemToEquip;
 						equipString = "You fasten " + object.toUpperCase() + " around your waist.";
 						break;
 					case GameItem.BOOTS:
-						if(GameState.equipSlot_BOOTS != null) {
-							GameState.equipSlot_BOOTS.isEquipped = false;
+						if(gameState.equipSlot_BOOTS != null) {
+							gameState.equipSlot_BOOTS.isEquipped = false;
 						}
-						GameState.equipSlot_BOOTS = itemToEquip;
+						gameState.equipSlot_BOOTS = itemToEquip;
 						equipString = "You strap the " + object.toUpperCase() + " around your ankles.";
 						break;
 					case GameItem.CUIRASS:
-						if(GameState.equipSlot_CUIRASS != null) {
-							GameState.equipSlot_CUIRASS.isEquipped = false;
+						if(gameState.equipSlot_CUIRASS != null) {
+							gameState.equipSlot_CUIRASS.isEquipped = false;
 						}
-						GameState.equipSlot_CUIRASS = itemToEquip;
+						gameState.equipSlot_CUIRASS = itemToEquip;
 						equipString = "You strap the " + object.toUpperCase() + " around your torso.";
 						break;
 					case GameItem.GAUNTLETS:
-						if(GameState.equipSlot_GAUNTLETS != null) {
-							GameState.equipSlot_GAUNTLETS.isEquipped = false;
+						if(gameState.equipSlot_GAUNTLETS != null) {
+							gameState.equipSlot_GAUNTLETS.isEquipped = false;
 						}
-						GameState.equipSlot_GAUNTLETS = itemToEquip;
+						gameState.equipSlot_GAUNTLETS = itemToEquip;
 						equipString = "You slip the " + object.toUpperCase() + " over your bare hands.";
 						break;
 					case GameItem.GREAVES:
-						if(GameState.equipSlot_GREAVES != null) {
-							GameState.equipSlot_GREAVES.isEquipped = false;
+						if(gameState.equipSlot_GREAVES != null) {
+							gameState.equipSlot_GREAVES.isEquipped = false;
 						}
-						GameState.equipSlot_GREAVES = itemToEquip;
+						gameState.equipSlot_GREAVES = itemToEquip;
 						equipString = "You strap the " + object.toUpperCase() + " around your legs.";
 						break;
 					case GameItem.HELM:
-						if(GameState.equipSlot_HELM != null) {
-							GameState.equipSlot_HELM.isEquipped = false;
+						if(gameState.equipSlot_HELM != null) {
+							gameState.equipSlot_HELM.isEquipped = false;
 						}
-						GameState.equipSlot_HELM = itemToEquip;
+						gameState.equipSlot_HELM = itemToEquip;
 						equipString = "You place the " + object.toUpperCase() + " on your head.";
 						break;
 					case GameItem.MAIN_HAND:
-						if(GameState.equipSlot_MAIN_HAND != null) {
-							GameState.equipSlot_MAIN_HAND.isEquipped = false;
+						if(gameState.equipSlot_MAIN_HAND != null) {
+							gameState.equipSlot_MAIN_HAND.isEquipped = false;
 						}
-						GameState.equipSlot_MAIN_HAND = itemToEquip;
+						if(gameState.equipSlot_TWO_HAND != null) {
+							gameState.equipSlot_TWO_HAND = null;
+						}
+						gameState.equipSlot_MAIN_HAND = itemToEquip;
 						equipString = "You hold the " + object.toUpperCase() + " firmly in your main hand.";
 						break;
 					case GameItem.OFF_HAND:
-						if(GameState.equipSlot_OFF_HAND != null) {
-							GameState.equipSlot_OFF_HAND.isEquipped = false;
+						if(gameState.equipSlot_OFF_HAND != null) {
+							gameState.equipSlot_OFF_HAND.isEquipped = false;
 						}
-						GameState.equipSlot_OFF_HAND = itemToEquip;
+						if(gameState.equipSlot_TWO_HAND != null) {
+							gameState.equipSlot_TWO_HAND = null;
+						}
+						gameState.equipSlot_OFF_HAND = itemToEquip;
 						equipString = "You grip the " + object.toUpperCase() + " with your off hand.";
 						break;
-					case GameItem.PANTS:
-						if(GameState.equipSlot_PANTS != null) {
-							GameState.equipSlot_PANTS.isEquipped = false;
+					case GameItem.TWO_HAND:
+						if(gameState.equipSlot_TWO_HAND != null) {
+							gameState.equipSlot_TWO_HAND.isEquipped = false;
 						}
-						GameState.equipSlot_PANTS = itemToEquip;
+						if(gameState.equipSlot_MAIN_HAND != null) {
+							gameState.equipSlot_MAIN_HAND = null;
+						}
+						if(gameState.equipSlot_OFF_HAND != null) {
+							gameState.equipSlot_OFF_HAND = null;
+						}
+						gameState.equipSlot_TWO_HAND = itemToEquip;
+						equipString = "You heft the " + object.toUpperCase() + " securely in both hands.";
+						break;
+					case GameItem.PANTS:
+						if(gameState.equipSlot_PANTS != null) {
+							gameState.equipSlot_PANTS.isEquipped = false;
+						}
+						gameState.equipSlot_PANTS = itemToEquip;
 						equipString = "You pull the " + object.toUpperCase() + " over your tattered skivvies.";
 						break;
 					case GameItem.SHIRT:
-						if(GameState.equipSlot_SHIRT != null) {
-							GameState.equipSlot_SHIRT.isEquipped = false;
+						if(gameState.equipSlot_SHIRT != null) {
+							gameState.equipSlot_SHIRT.isEquipped = false;
 						}
-						GameState.equipSlot_SHIRT = itemToEquip;
+						gameState.equipSlot_SHIRT = itemToEquip;
 						equipString = "You pull the " + object.toUpperCase() + " over your bare chest.";
 						break;
 					case GameItem.SHOES:
-						if(GameState.equipSlot_SHOES != null) {
-							GameState.equipSlot_SHOES.isEquipped = false;
+						if(gameState.equipSlot_SHOES != null) {
+							gameState.equipSlot_SHOES.isEquipped = false;
 						}
-						GameState.equipSlot_SHOES = itemToEquip;
+						gameState.equipSlot_SHOES = itemToEquip;
 						equipString = "You slip the " + object.toUpperCase() + " over your bare feet.";
 						break;
 					case GameItem.RING:
-						if(GameState.equipSlot_RING != null) {
-							GameState.equipSlot_RING.isEquipped = false;
+						if(gameState.equipSlot_RING != null) {
+							gameState.equipSlot_RING.isEquipped = false;
 						}
-						GameState.equipSlot_RING = itemToEquip;
+						gameState.equipSlot_RING = itemToEquip;
 						equipString = "You slip the " + object.toUpperCase() + " onto your index finger.";
 						break;
 					case GameItem.AMULET:
-						if(GameState.equipSlot_AMULET != null) {
-							GameState.equipSlot_AMULET.isEquipped = false;
+						if(gameState.equipSlot_AMULET != null) {
+							gameState.equipSlot_AMULET.isEquipped = false;
 						}
-						GameState.equipSlot_AMULET = itemToEquip;
+						gameState.equipSlot_AMULET = itemToEquip;
 						equipString = "You tie the " + object.toUpperCase() + " around your neck.";
 						break;
 					case GameItem.EARRING:
-						if(GameState.equipSlot_EARRING != null) {
-							GameState.equipSlot_EARRING.isEquipped = false;
+						if(gameState.equipSlot_EARRING != null) {
+							gameState.equipSlot_EARRING.isEquipped = false;
 						}
-						GameState.equipSlot_EARRING = itemToEquip;
+						gameState.equipSlot_EARRING = itemToEquip;
 						equipString = "You pin the " + object.toUpperCase() + " to your ear.";
 						break;
 					case GameItem.CLOAK:
-						if(GameState.equipSlot_CLOAK != null) {
-							GameState.equipSlot_CLOAK.isEquipped = false;
+						if(gameState.equipSlot_CLOAK != null) {
+							gameState.equipSlot_CLOAK.isEquipped = false;
 						}
-						GameState.equipSlot_CLOAK = itemToEquip;
+						gameState.equipSlot_CLOAK = itemToEquip;
 						equipString = "You wrap the " + object.toUpperCase() + " around your shoulders.";
 						break;
 					default:
@@ -4231,17 +4034,17 @@ public class CommandLineInterface {
 				equipString = "You are currently holding the " + object.toUpperCase();
 			} else if(gameState.inventory.containsKey(object)){//object is in the player's inventory
 				equipString = "It will take a moment to EQUIP your " + object.toUpperCase() + ".\nYou should OPEN your INVENTORY to do this.";
-			} else if(GameRoom.lookup(gameState.currentRoomId).containsItem(object)) {//if the item is in the room
+			} else if(gameState.visitedRooms.get(gameState.currentRoomId).containsItem(object)) {//if the item is in the room
 				equipString = "You need to TAKE the " + object.toUpperCase() + " before you can EQUIP it.";
 			}
 		} else if(GameEnemy.enemies != null && GameEnemy.enemies.containsKey(object.toUpperCase())) {//if the object is a valid game enemy
-			if(GameRoom.lookup(gameState.currentRoomId).containsEnemy(object)) {//if the enemy is in the room
+			if(gameState.visitedRooms.get(gameState.currentRoomId).containsEnemy(object)) {//if the enemy is in the room
 				equipString = "The " + object.toUpperCase() + " doesn't seem easily worn. Or willing.";
 			} else {//enemy is not in the room
 				equipString = "Are you asking for a " + object.toUpperCase() + " to hug you?";
 			}
 		} else if(GameObject.objects != null && GameObject.objects.containsKey(object)) {//object is a valid game object
-			if(GameRoom.lookup(gameState.currentRoomId).containsObject(object)) {//if the object is in the room
+			if(gameState.visitedRooms.get(gameState.currentRoomId).containsObject(object)) {//if the object is in the room
 				equipString = "Even if you could wear a " + object.toUpperCase() + ", why would you want to?";
 			} else {
 				equipString = "You don't see any " + object.toUpperCase() + " to EQUIP.";
@@ -4398,7 +4201,7 @@ public class CommandLineInterface {
 				if(f == null || !f.exists() || !f.isFile()) {//no File stored in Save Game slot
 					System.out.println("No Game Saved in slot " + saveSlot + ".");
 				} else {//got a Save Game File
-					byte[] fileData = decompress(readFile(f));
+					byte[] fileData = GameUtility.decompress(GameUtility.readFile(f));
 					fileData = Base64.getDecoder().decode(fileData);
 					GameState newGameState = GameState.parseBytes(fileData);
 					if(newGameState == null) {
@@ -4407,7 +4210,7 @@ public class CommandLineInterface {
 						gameState = newGameState;
 						saveGameSlot = saveSlot;
 						System.out.println("Saved Game in slot [" + saveSlot + "] loaded.");
-						System.out.println(gameState.visitedRooms.get(gameState.currentRoomId).description);
+						System.out.println(narrate("room",gameState.currentRoomId + ""));
 					}
 				}
 			}
@@ -4448,7 +4251,7 @@ public class CommandLineInterface {
 					for(GameVolume v: volumes) {
 						count += v.items.get(object).size();
 					}
-					lookString = GameItem.lookup(object).description + "\nThere are " + count + " in the ROOM.";
+					lookString = GameItem.lookup(object).description + "\nThere are " + count + " in the ROOM.";//use of LOOKUP here is questionable...
 				}
 			} else {
 				lookString = "You see no " + object.toUpperCase() + " in the Room.";
@@ -4461,7 +4264,7 @@ public class CommandLineInterface {
 					for(GameVolume v: volumes) {
 						count += v.objects.get(object).size();
 					}
-					lookString = GameObject.lookup(object).description + "\nThere are " + count + " in the ROOM.";
+					lookString = GameObject.lookup(object).description + "\nThere are " + count + " in the ROOM.";//use of LOOKUP here is questionable...
 				}
 			} else {
 				lookString = "You see no " + object.toUpperCase() + " in the Room.";
@@ -4474,7 +4277,7 @@ public class CommandLineInterface {
 					for(GameVolume v: volumes) {
 						count += v.enemies.get(object).size();
 					}
-					lookString = GameItem.lookup(object).description + "\nThere are " + count + " currently in the ROOM.";
+					lookString = GameItem.lookup(object).description + "\nThere are " + count + " currently in the ROOM.";//use of LOOKUP here is questionable...
 				}
 			} else {
 				lookString = "You see no " + object.toUpperCase() + " in the Room.";
@@ -4499,59 +4302,63 @@ public class CommandLineInterface {
 		String moveString = "";
 		if(context.matches("(into\\s+)*(the\\s+|this\\s+)*\\s*room")) {
 			moveString = "As comfortable as this ROOM looks, you don't see yourself moving in just yet.";
-		} else if(context.matches("\\w+")) {//only 1 word detected in context
-			GameRoom room = gameState.visitedRooms.get(gameState.roomVolumeIndex);
+		} else {
+			GameRoom room = gameState.visitedRooms.get(gameState.currentRoomId);
 			GameVolume currentVolume = room.interior.get(gameState.roomVolumeIndex);
-			byte moveDir = (1 << 0 | 1 << 2 | 1 << 4);//21 (no movement on all axes)
-			if(context.matches("w(est)?")) {//if direction, move player in that direction (affecting gameState.currentRoomId, gameState.roomVolumeIndex, etc.
-				moveDir = (0 << 0 | 1 << 2 | 1 << 4);//20 - negative X axis movement
-			} else if(context.matches("e(ast)?")) {
-				moveDir = (2 << 0 | 1 << 2 | 1 << 4);//22 - positive X axis movement
-			} else if(context.matches("n(orth)?")) {
-				moveDir = (1 << 0 | 2 << 2 | 1 << 4);//25 - positive Y axis movement
-			} else if(context.matches("s(outh)?")) {
-				moveDir = (1 << 0 | 0 << 2 | 1 << 4);//17 - negative Y axis movement
-//			} else if(context.matches("l(eft)?")) {
-//				//should I even bother to figure out context of facingDirection()?
-//			} else if(context.matches("r(ight)?")) {
-//				//should I even bother to figure out context of facingDirection()?
-			} else if(context.matches("u((p)?((ward)?(s)?)?)?")) {
-				moveDir = (1 << 0 | 1 << 2 | 2 << 4);//37 - positive Z axis movement
-			} else if(context.matches("d((own)?((ward)?(s)?)?)?")) {
-				moveDir = (1 << 0 | 1 << 2 | 0 << 4);//5 - negative Z axis movement
-			} else if(context.matches("northwest|nw")) {
-				moveDir = (0 << 0 | 2 << 2 | 1 << 4);//24 - negative X axis movement, positive Y axis movement
-			} else if(context.matches("northeast|ne")) {
-				moveDir = (2 << 0 | 2 << 2 | 1 << 4);//26 - positive X axis movement, positive Y axis movement
-			} else if(context.matches("southwest|sw")) {
-				moveDir = (0 << 0 | 0 << 2 | 1 << 4);//16 - negative X axis movement, negative Y axis movement
-			} else if(context.matches("southeast|se")) {
-				moveDir = (2 << 0 | 0 << 2 | 1 << 4);//18 - positive X axis movement, negative Y axis movement
-			} else if(GameObject.objects.containsKey(context)) {//trying to move an Object
-				if(gameState.visitedRooms.get(gameState.currentRoomId).containsObject(context)) {//if the current Room contains the Object
-					if(GameObject.objects.get(context).isMovable) {//if the player can physically move this Object
-						moveString = "You must specify a DIRECTION to MOVE the " + context.toUpperCase() + ".";
-					} else {//Object is NOT movable
-						moveString = "The " + context.toUpperCase() + " seems to be immovable.";
-					}
-				} else {//Object not in the room
-					moveString = "You don't see any " + context.toUpperCase() + " to MOVE.";
+			byte moveDir = 0b01_01_01;//(1 << 0 | 1 << 2 | 1 << 4);//21 (no movement on all axes)
+			if(!context.matches(".*(north|south|east|west|up|down).*")) {
+				moveString = "Unknown movement direction: " + context.toUpperCase();
+			} else {
+				if(context.contains("north") && !context.contains("south")) {
+					moveDir &= 0b11_00_11;//preserve X, zero-out Y, preserve Z
+					moveDir |= 0b11_10_11;
+				} else if(context.contains("south") && !context.contains("north")) {
+					moveDir &= 0b11_00_11;
+				} else if(context.contains("north") && context.contains("south")) {
+					moveString = "Contradictory movement directions: NORTH/SOUTH. ";
 				}
-			} else if(GameItem.items.containsKey(context)) {//trying to move an Item
-				if(gameState.visitedRooms.get(gameState.currentRoomId).containsItem(context)) {//if the current Room contains the Item
-					moveString = "Tou must specify a DIRECTION to MOVE the " + context.toUpperCase() + ".";
-				} else {//Item not in the room
-					moveString = "You don't see any " + context.toUpperCase() + " to MOVE.";
+				if(context.contains("east") && !context.contains("west")) {
+					moveDir &= 0b11_11_00;//zero-out X, preserve Y, preserve Z
+					moveDir |= 0b11_11_10;
+				} else if(context.contains("west") && !context.contains("east")) {
+					moveDir &= 0b11_11_00;
+				} else if(context.contains("east") && context.contains("west")) {
+					moveString = "Contradictory movement directions: EAST/WEST. ";
 				}
-			} else if(GameEnemy.enemies.containsKey(context)) {//trying to move an Enemy
-				if(gameState.visitedRooms.get(gameState.currentRoomId).containsEnemy(context)) {//if the Enemy is in the Room
-					moveString = "The " + context.toUpperCase() + " looks at you as if to say, \"No, *you* MOVE\"!";
-				} else {//Enemy not in the Room
-					moveString = "You can't tell the " + context.toUpperCase() + " to MOVE if they aren't here.";
+				if(context.contains("up") && !context.contains("down")) {
+					moveDir &= 0b00_11_11;//preserve X, preserve Y, zero-out Z
+					moveDir |= 0b10_11_11;
+				} else if(context.contains("down") && !context.contains("up")) {
+					moveDir &= 0b00_11_11;
+				} else if(context.contains("up") && context.contains("down")) {
+					moveString = "Contradictory movement directions: UP/DOWN. ";
 				}
-			} else {//unknown object
-				moveString = context.toUpperCase() + "? Never heard of it.";
 			}
+//			if(GameObject.objects.containsKey(context)) {//trying to move an Object
+//				if(gameState.visitedRooms.get(gameState.currentRoomId).containsObject(context)) {//if the current Room contains the Object
+//					if(GameObject.objects.get(context).isMovable) {//if the player can physically move this Object
+//						moveString = "You must specify a DIRECTION to MOVE the " + context.toUpperCase() + ".";
+//					} else {//Object is NOT movable
+//						moveString = "The " + context.toUpperCase() + " seems to be immovable.";
+//					}
+//				} else {//Object not in the room
+//					moveString = "You don't see any " + context.toUpperCase() + " to MOVE.";
+//				}
+//			} else if(GameItem.items.containsKey(context)) {//trying to move an Item
+//				if(gameState.visitedRooms.get(gameState.currentRoomId).containsItem(context)) {//if the current Room contains the Item
+//					moveString = "You must specify a DIRECTION to MOVE the " + context.toUpperCase() + ".";
+//				} else {//Item not in the room
+//					moveString = "You don't see any " + context.toUpperCase() + " to MOVE.";
+//				}
+//			} else if(GameEnemy.enemies.containsKey(context)) {//trying to move an Enemy
+//				if(gameState.visitedRooms.get(gameState.currentRoomId).containsEnemy(context)) {//if the Enemy is in the Room
+//					moveString = "The " + context.toUpperCase() + " looks at you as if to say, \"No, *you* MOVE\"!";
+//				} else {//Enemy not in the Room
+//					moveString = "You can't tell the " + context.toUpperCase() + " to MOVE if they aren't here.";
+//				}
+//			} else {//unknown object
+//				moveString = context.toUpperCase() + "? Never heard of it.";
+//			}
 			if(moveDir != 21) {//if got a good movement direction
 				GameVolume nextVolume = gameState.getNextVolumeInDirection(currentVolume,moveDir);
 				if(nextVolume != null) {
@@ -4563,15 +4370,8 @@ public class CommandLineInterface {
 					}
 				}
 			} else {//no movement indicated
-				moveString = "You don't MOVE anywhere.";
+				moveString += "You don't MOVE anywhere.";
 			}
-		} else if(context.matches("\\w+\\s+\\w+")) {//more than 1 word detected in context
-			String[] tokens = context.split("\\s+");
-			//TODO: determine intent of tokens...implement this method
-			//if direction,something else -> move player in direction...handled above already
-			//if item/object,direction -> move item/object in direction (if able)
-			//if item/object,something else -> shake your head and give up
-			//if enemy,something else -> say something snarky
 		}
 		return moveString;
 	}
@@ -4614,7 +4414,7 @@ public class CommandLineInterface {
 			if(!allItems.isEmpty()) {
 				narration += "\nIt contains these ITEMS:";
 				for(GameItem i: allItems) {
-					narration += "\n\t" + i.name.toUpperCase();
+					narration += "\n\t" + i.getFullItemName().toUpperCase();
 				}
 			}
 			List<GameEnemy> allEnemies = new ArrayList<GameEnemy>();
@@ -4644,7 +4444,7 @@ public class CommandLineInterface {
 								if(object.isOpen) {
 									narration += " It contains these ITEMS:";
 									for(GameItem i: object.contents) {
-										narration += "\n\t" + i.name.toUpperCase();
+										narration += "\n\t" + i.getFullItemName().toUpperCase();
 									}
 								} else {
 									narration += " It is CLOSED.";
@@ -4675,7 +4475,7 @@ public class CommandLineInterface {
 			if(gameState.inventory != null && !gameState.inventory.isEmpty()) {
 				narration += "Your inventory contains these ITEMS:";
 				for(GameItem i: gameState.inventory.values()) {
-					narration += "\n\t" + i.name.toUpperCase();
+					narration += "\n\t" + i.getFullItemName().toUpperCase();
 				}
 			}
 			break;
@@ -4705,7 +4505,641 @@ public class CommandLineInterface {
 	 * newGame() Starts a New Game
 	 */
 	private static void newGame() {
-		gameState = new GameState();
+		GameUtility.initDefaultResources();
+		//TODO: finish Character creation here, including:
+		/*
+		ability score rolls?: 7 rolls of (4d6, take highest 3), take highest 6
+		race selection: apply race modifiers to Stats, languages, etc.
+		class selection: apply class modifiers (http://dmreference.com/SRD/Characters.htm)
+		item selection: add random enchantments to items?
+		spell selection: given class spells + choose # of other spells with sufficient SP & level restrictions
+		starting player (&&/|| difficulty?) level [enemies +/- player lvl]
+		 */
+		boolean playerOneReady = false;
+		String playerInput = "";
+		while (!playerOneReady) {
+			System.out.println("Do you want to [C]ustomize your character or play with the [D]efault?");
+			playerInput = sanitize(sc.nextLine());
+			if(playerInput.matches("c(ustom(ize)?)?")) {
+				boolean playingDressUp = true;
+				int creationIndex = 1;
+				gameState = new GameState(new GameState(new GameState(0,0,10,10,"null",null,0,100,0,false,null,1),10,0,0,0,null,10,10,0,0,0),6,8,0,20,"MALE",60,180,"BROWN","BLACK","DARK",0,0,"HUMAN","FIGHTER","Armin");
+				while(playingDressUp) {
+					while (creationIndex == 1 && playingDressUp) {
+						System.out.println("What is the GENDER of your character? ([M]ale -|- [F]emale -|- [O]ther -|- [B]ack -|- e[X]it)");
+						playerInput = sanitize(sc.nextLine());
+						if(playerInput.matches("(x|exit)")) {
+							System.out.println("Exiting CUSTOM character mode.");
+							playingDressUp = false;
+							break;
+						} else if(playerInput.matches("b(ack)?")) {
+							playingDressUp = false;
+							break;
+						} else if(playerInput.matches("m(ale)?")) {
+							gameState.gender = "MALE";
+							creationIndex++;
+						} else if(playerInput.matches("f(emale)?")) {
+							gameState.gender = "FEMALE";
+							creationIndex++;
+						} else if(playerInput.matches("o(ther)?")) {
+							System.out.println("Specify another GENDER: ");
+							playerInput = sanitize(sc.nextLine());
+							System.out.println("You entered " + playerInput.toUpperCase() + " as your GENDER.");
+							gameState.gender = playerInput.toUpperCase();
+							creationIndex++;
+						} else {
+							System.out.println("Bad input: " + playerInput.toUpperCase());
+						}
+					}
+					while(creationIndex == 2 && playingDressUp) {//(http://dmreference.com/SRD/Characters/Description/Vital_Statistics/Height_And_Weight.htm)
+						int height = 0;
+						int weight = 0;
+						System.out.println("What RACE do you want to be? ([H]uman -|- [E]lf -|- [D]warf -|- [B]ack -|- e[X]it)");
+						playerInput = sanitize(sc.nextLine());
+						if(playerInput.matches("x|exit")) {
+							System.out.println("Exiting CUSTOM character mode.");
+							playingDressUp = false;
+							break;
+						} else if(playerInput.matches("b(ack)?")) {
+							creationIndex--;
+							break;
+						} else if(playerInput.matches("h(uman)?")) {
+							gameState.playerRace = GameState.race_HUMAN;
+							gameState.speed = 6;
+							boolean gotHW = false;
+							while(!gotHW) {
+								height = GameUtility.rollDie(10,0,false) + GameUtility.rollDie(10,0,false);
+								weight = ((GameUtility.rollDie(4,0,false) + GameUtility.rollDie(4,0,false)) * height);
+								if(gameState.gender.equals("MALE")) {
+									//Human, M	|		58"		|		+2d10		|	120 lb.		|	x (2d4) lb.
+									height += 58;
+									weight += 120;
+								} else if(gameState.gender.equals("FEMALE")) {
+									//Human, F	|		49"		|		+2d10		|	85 lb.		|	x (2d4) lb.
+									height += 49;
+									weight += 85;
+								} else {
+									//average of both
+									height += 55;
+									weight += 105;
+								}
+								boolean gotConfirmation = false;
+								while(!gotConfirmation) {
+									System.out.println("Do you want to ACCEPT or REROLL the Stats for your " + gameState.playerRace.toUpperCase() + " " + gameState.gender.toUpperCase() + "?: ");
+									System.out.println(String.format("HEIGHT: %1$s ft. %2$s in. | WEIGHT: %3$s lbs.",height / 12,height % 12,weight));
+									playerInput = sanitize(sc.nextLine());
+									if(playerInput.matches("a(ccept)?")) {
+										gotHW = true;
+										gotConfirmation = true;
+										creationIndex++;
+									} else if(playerInput.matches("r(eroll)?")) {
+										gotConfirmation = true;
+									} else {
+										System.out.println("Invalid input: " + playerInput.toUpperCase());
+									}
+								}
+							}
+						} else if(playerInput.matches("e(lf)?")) {
+							gameState.playerRace = GameState.race_ELF;
+							gameState.speed = 6;
+							boolean gotHW = false;
+							while(!gotHW) {
+								height = GameUtility.rollDie(6,0,false) + GameUtility.rollDie(6,0,false);
+								weight = GameUtility.rollDie(6,0,false) * height;
+								if(gameState.gender.equals("MALE")) {
+									//Elf, M		|		53"		|		+2d6		|	85 lb.		|	x (1d6) lb.
+									height += 53;
+									weight += 85;
+								} else if(gameState.gender.equals("FEMALE")) {
+									//Elf, F		|		53"		|		+2d6		|	80 lb.		|	x (1d6) lb.
+									height += 53;
+									weight += 82;
+								} else {
+									//average of both
+									height += 53;
+									weight += 83;
+								}
+								boolean gotConfirmation = false;
+								while(!gotConfirmation) {
+									System.out.println("Do you want to ACCEPT or REROLL the Stats for your " + gameState.playerRace.toUpperCase() + " " + gameState.gender.toUpperCase() + "?: ");
+									System.out.println(String.format("HEIGHT: %1$s ft. %2$s in. | WEIGHT: %3$s lbs.",height / 12,height % 12,weight));
+									playerInput = sanitize(sc.nextLine());
+									if(playerInput.matches("a(ccept)?")) {
+										gotHW = true;
+										gotConfirmation = true;
+										creationIndex++;
+									} else if(playerInput.matches("r(eroll)?")) {
+										gotConfirmation = true;
+									} else {
+										System.out.println("Invalid input: " + playerInput.toUpperCase());
+									}
+								}
+							}
+						} else if(playerInput.matches("d(warf)?")) {
+							gameState.playerRace = GameState.race_DWARF;
+							gameState.speed = 4;
+							boolean gotHW = false;
+							while(!gotHW) {
+								height = GameUtility.rollDie(4,0,false) + GameUtility.rollDie(4,0,false);
+								weight = ((GameUtility.rollDie(6,0,false) + GameUtility.rollDie(6,0,false)) * height);
+								if(gameState.gender.equals("MALE")) {
+									//Dwarf, M	|		45"		|		+2d4		|	130 lb.		|	x (2d6) lb.
+									height += 45;
+									weight += 130;
+								} else if(gameState.gender.equals("FEMALE")) {
+									//Dwarf, F	|		43"		|		+2d4		|	100 lb.		|	x (2d6) lb.
+									height += 43;
+									weight += 100;
+								} else {
+									//average of both
+									height += 44;
+									weight += 115;
+								}
+								boolean gotConfirmation = false;
+								while(!gotConfirmation) {
+									System.out.println("Do you want to ACCEPT or REROLL the Stats for your " + gameState.playerRace.toUpperCase() + " " + gameState.gender.toUpperCase() + "?: ");
+									System.out.println(String.format("HEIGHT: %1$s ft. %2$s in. | WEIGHT: %3$s lbs.",height / 12,height % 12,weight));
+									playerInput = sanitize(sc.nextLine());
+									if(playerInput.matches("a(ccept)?")) {
+										gotHW = true;
+										gotConfirmation = true;
+										creationIndex++;
+									} else if(playerInput.matches("r(eroll)?")) {
+										gotConfirmation = true;
+									} else {
+										System.out.println("Invalid input: " + playerInput.toUpperCase());
+									}
+								}
+							}
+						} else {
+							System.out.println("Invalid RACE: " + playerInput.toUpperCase());
+						}
+					}
+					while(creationIndex == 3 && playingDressUp) {
+						System.out.println("What color is your SKIN? ([B]ack -|- e[X]it) Valid COLORs are:");
+						String[] colors = new String[]{"BLACK","DARK BROWN","BROWN","PURPLE","TAN","BLUE","GRAY","VIOLET","RED","PINK","COPPER","WHITE"};
+						for(int i = 0; i < colors.length; i++) {
+							System.out.print(colors[i]);
+							if(i != colors.length - 1) {
+								System.out.print(", ");
+							}
+						}
+						System.out.println();
+						List<String> skinColors = new ArrayList<String>();
+						for(String s: colors) {
+							skinColors.add(s);
+						}
+						playerInput = sanitize(sc.nextLine());
+						if(playerInput.matches("x|exit")) {
+							System.out.println("Exiting CUSTOM character mode.");
+							playingDressUp = false;
+							break;
+						} else if(playerInput.matches("b(ack)?")) {
+							creationIndex--;
+							break;
+						} else if(skinColors.contains(playerInput.toUpperCase())) {
+							gameState.skinDesc = playerInput.toUpperCase();
+							creationIndex++;
+						} else {
+							System.out.println("Invalid input: " + playerInput.toUpperCase());
+						}
+					}
+					while(creationIndex == 4 && playingDressUp) {
+						System.out.println("What color are your EYES? ([B]ack -|- e[X]it) Valid COLORs are:");
+						String[] colors = new String[]{"BLACK","DARK BROWN","BROWN","PURPLE","BLUE","GRAY","VIOLET","GREEN","RED","AMBER"};
+						for(int i = 0; i < colors.length; i++) {
+							System.out.print(colors[i]);
+							if(i != colors.length - 1) {
+								System.out.print(", ");
+							}
+						}
+						System.out.println();
+						List<String> eyeColors = new ArrayList<String>();
+						for(String s: colors) {
+							eyeColors.add(s);
+						}
+						playerInput = sanitize(sc.nextLine());
+						if(playerInput.matches("x|exit")) {
+							System.out.println("Exiting CUSTOM character mode.");
+							playingDressUp = false;
+							break;
+						} else if(playerInput.matches("b(ack)?")) {
+							creationIndex--;
+							break;
+						} else if(eyeColors.contains(playerInput.toUpperCase())) {
+							gameState.eyeDesc = playerInput.toUpperCase();
+							creationIndex++;
+						} else {
+							System.out.println("Invalid input: " + playerInput.toUpperCase());
+						}
+					}
+					while(creationIndex ==5 && playingDressUp) {
+						System.out.println("What color is your HAIR? ([B]ack -|- e[X]it) Valid COLORs are:");
+						String[] colors = new String[]{"BLACK","DARK BROWN","BROWN","PURPLE","BLUE","GRAY","VIOLET","RED","BLONDE","WHITE"};
+						for(int i = 0; i < colors.length; i++) {
+							System.out.print(colors[i]);
+							if(i != colors.length - 1) {
+								System.out.print(", ");
+							}
+						}
+						System.out.println();
+						List<String> hairColors = new ArrayList<String>();
+						for(String s: colors) {
+							hairColors.add(s);
+						}
+						playerInput = sanitize(sc.nextLine());
+						if(playerInput.matches("x|exit")) {
+							System.out.println("Exiting CUSTOM character mode.");
+							playingDressUp = false;
+							break;
+						} else if(playerInput.matches("b(ack)?")) {
+							creationIndex--;
+							break;
+						} else if(hairColors.contains(playerInput.toUpperCase())) {
+							gameState.hairDesc = playerInput.toUpperCase();
+							creationIndex++;
+						} else {
+							System.out.println("Bad input: " + playerInput.toUpperCase());
+						}
+					}
+					String name = null;
+					if(creationIndex ==6) {
+						if(gameState.gender.equals("MALE")) {
+							name = GameState.namesMale[Double.valueOf(Math.random() * GameState.namesMale.length).intValue()];
+						} else if(gameState.gender.equals("FEMALE")) {
+							name = GameState.namesFemale[Double.valueOf(Math.random() * GameState.namesFemale.length).intValue()];
+						} else {
+							name = GameState.namesOther[Double.valueOf(Math.random() * GameState.namesOther.length).intValue()];
+						}
+					}
+					while(creationIndex == 6 && playingDressUp) {
+						System.out.println("Your NAME is " + name + ". [A]ccept, [R]andom, or [E]nter your own? -|- [B]ack -|- e[X]it");
+						playerInput = sanitize(sc.nextLine());
+						if(playerInput.matches("x|exit")) {
+							System.out.println("Exiting CUSTOM character mode.");
+							playingDressUp = false;
+							break;
+						} else if(playerInput.matches("b(ack)?")) {
+							creationIndex--;
+							break;
+						} else if(playerInput.matches("a(ccept)?")) {
+							gameState.name = name;
+							creationIndex++;
+						} else if(playerInput.matches("r(andom)?")) {
+							if(gameState.gender.equals("MALE")) {
+								name = GameState.namesMale[Double.valueOf(Math.random() * GameState.namesMale.length).intValue()];
+							} else if(gameState.gender.equals("FEMALE")) {
+								name = GameState.namesFemale[Double.valueOf(Math.random() * GameState.namesFemale.length).intValue()];
+							} else {
+								name = GameState.namesOther[Double.valueOf(Math.random() * GameState.namesOther.length).intValue()];
+							}
+						} else if(playerInput.matches("e(nter)?")){
+							System.out.println("ENTER your own NAME:");
+							name = sc.nextLine();
+						}
+					}
+					int age = 0;//age info taken from http://dmreference.com/SRD/Characters/Description/Vital_Statistics/Age.htm#B_TableRandomStartingAges
+					if(creationIndex == 7) {
+						if(gameState.playerRace.equals(GameState.race_HUMAN)) {
+							age = 15 + GameUtility.rollDie(6,0,false);
+						} else if(gameState.playerRace.equals(GameState.race_ELF)) {
+							age = 110;
+							for(int i = 0; i < 6; i++) {
+								age += GameUtility.rollDie(6,0,false);
+							}
+						} else if(gameState.playerRace.equals(GameState.race_DWARF)) {
+							age = 40;
+							for(int i = 0; i < 5; i++) {
+								age += GameUtility.rollDie(6,0,false);
+							}
+						} else {
+							//unknown / unsupported player race
+						}
+					}
+					while(creationIndex == 7 && playingDressUp) {
+						System.out.println("Your AGE is: " + age + ". [A]ccept, [R]andom, or [E]nter your own? -|- [B]ack -|- e[X]it");
+						playerInput = sanitize(sc.nextLine());
+						if(playerInput.matches("x|exit")) {
+							System.out.println("Exiting CUSTOM character mode.");
+							playingDressUp = false;
+							break;
+						} else if(playerInput.matches("b(ack)?")) {
+							creationIndex--;
+							break;
+						} else if(playerInput.matches("a(ccept)?")) {
+							gameState.age = age;
+							creationIndex++;
+						} else if(playerInput.matches("r(andom)?")) {
+							if(gameState.playerRace.equals(GameState.race_HUMAN)) {
+								age = 15 + GameUtility.rollDie(6,0,false);
+							} else if(gameState.playerRace.equals(GameState.race_ELF)) {
+								age = 110;
+								for(int i = 0; i < 6; i++) {
+									age += GameUtility.rollDie(6,0,false);
+								}
+							} else if(gameState.playerRace.equals(GameState.race_DWARF)){
+								age = 40;
+								for(int i = 0; i < 5; i++) {
+									age += GameUtility.rollDie(6,0,false);
+								}
+							} else {
+								//unknown / unsupported player race
+							}
+						} else if(playerInput.matches("e(nter)?")){
+							int minAge = 0;//minimum age for ADULT-hood
+							int maxAge = 0;//maximum age
+							if(gameState.playerRace.equals(GameState.race_HUMAN)) {
+								minAge = 15;
+								maxAge = 110;
+							} else if(gameState.playerRace.equals(GameState.race_ELF)) {
+								minAge = 110;
+								maxAge = 750;
+							} else if(gameState.playerRace.equals(GameState.race_DWARF)){
+								minAge = 40;
+								maxAge = 450;
+							} else {
+								//unknown / unsupported player race
+							}
+							System.out.print("ENTER your own AGE (Min: " + minAge + ", Max: " + maxAge + "):");
+							int tempAge = Integer.parseInt(sanitize(sc.nextLine()));
+							if(tempAge >= minAge && tempAge <= maxAge) {
+								age = tempAge;
+							} else {
+								System.out.println("Invalid AGE value: " + tempAge);
+							}
+						}
+					}
+					while(creationIndex == 8 && playingDressUp) {
+						System.out.println("Choose a CLASS: [F]ighter -|- [R]anger -|- [M]age -|- [B]ack -|- e[X]it");
+						playerInput = sanitize(sc.nextLine());
+						if(playerInput.matches("(x|exit)")) {
+							System.out.println("Exiting CUSTOM character mode.");
+							playingDressUp = false;
+							break;
+						} else if(playerInput.matches("b(ack)?")) {
+							creationIndex--;
+						} else if(playerInput.matches("f(ighter)?")) {
+							gameState.playerClass = "FIGHTER";
+							gameState.hitDie = 10;
+							gameState.maxHp = 10;
+							gameState.currentHp = 10;
+							gameState.maxSp = 0;
+							gameState.currentSp = 0;
+							gameState.attackBonusMelee = 1;
+							//gameState.fortitude = 2;gameState.reflex = 0;gameState.willpower = 0;
+							creationIndex++;
+						} else if(playerInput.matches("r(anger)?")) {
+							gameState.playerClass = "RANGER";
+							gameState.hitDie = 8;
+							gameState.maxHp = 8;
+							gameState.currentHp = 8;
+							gameState.maxSp = 2;
+							gameState.currentSp = 2;
+							gameState.attackBonusRanged = 1;
+							//gameState.fortitude = 2;gameState.reflex = 2;gameState.willpower = 0;
+							creationIndex++;
+						} else if(playerInput.matches("m(age)?")) {
+							gameState.playerClass = "MAGE";
+							gameState.hitDie = 6;//really is 4, but...
+							gameState.maxHp = 6;
+							gameState.currentHp = 6;
+							gameState.maxSp = 4;
+							gameState.currentSp = 4;
+							gameState.attackBonusMagic = 1;
+							//gameState.fortitude = 0;gameState.reflex = 0;gameState.willpower = 2;
+							creationIndex++;
+						} else {
+							System.out.println("Invalid input: " + playerInput.toUpperCase());
+						}
+					}
+					double playerCoin = 0d;//Items + COIN (shop)
+					List<GameItem> shopItems = new ArrayList<GameItem>();
+					List<Integer> selectedItemIndexes = new ArrayList<Integer>();
+					List<GameItem> playerInv = new ArrayList<GameItem>();
+					if(creationIndex == 9) {
+						gameState.currentXp = 0;//nextLevelXP = 1000 * (sum(1...nextLevel))
+						/*
+							LEVEL	TOTAL		XP_to_Next [1/2L(L+1)]
+							L0		0k			+1k
+							L1		1k			+3k
+							L2		4k			+6k
+							L3		10k			+10k
+							L4		20k			+15k
+							L5		35k			+21k
+							L6		56k			+28k
+							L7		84k			+36k
+							L8		120k		+45k
+							L9		165k		+55k
+							L10		220k		+66k
+							etc...
+						 */
+						gameState.currentLevel = 0;//to be level 6, you need >= 56000 XP ()
+						gameState.armorClass = 10;//if ever implement abilityScores, change this to += dexMod
+						gameState.damageReduction = 0;
+						gameState.magicResistance = 0;
+						gameState.maxWeight = 100d;//if ever implement abilityScores, change this based on STR
+						gameState.initiative = 1;//if ever implement abilityScores, change this to dexMod
+						gameState.size = 0;//if ever implement SMALL or LARGE playerRace
+						//Player Starting Level//TODO: possibly implement starting the game at a higher level...
+						if(gameState.playerClass.equals("FIGHTER")) {
+							for(int i = 0; i < 5; i ++) {
+								playerCoin += 10 * 6;//GameUtility.rollDie(6,0,false);
+							}
+							shopItems.add(new GameItem(GameItem.lookup("Full Plate")));
+							shopItems.add(new GameItem(GameItem.lookup("Chain Mail")));
+							shopItems.add(new GameItem(GameItem.lookup("Buckler")));
+							shopItems.add(new GameItem(GameItem.lookup("Mace")));
+							shopItems.add(new GameItem(GameItem.lookup("Dagger")));
+							shopItems.add(new GameItem(GameItem.lookup("Long Sword")));
+							shopItems.add(new GameItem(GameItem.lookup("Great Sword")));
+							shopItems.add(new GameItem(GameItem.lookup("Maul")));
+							GameItem healthPotion = new GameItem(GameItem.lookup("Potion"));
+							GameItemSuffix healing = new GameItemSuffix(GameItemSuffix.lookup("health"));
+							if(healing != null) {
+								healthPotion = healthPotion.addSuffix(healing);
+							}
+							healthPotion.quantity = 5;
+							shopItems.add(healthPotion);
+						} else if(gameState.playerClass.equals("RANGER")) {
+							for(int i = 0; i < 4; i ++) {
+								playerCoin += 10 * 6;//GameUtility.rollDie(6,0,false);
+							}
+							shopItems.add(new GameItem(GameItem.lookup("Long Bow")));
+							shopItems.add(new GameItem(GameItem.lookup("Short Bow")));
+							shopItems.add(new GameItem(GameItem.lookup("Dagger")));
+							shopItems.add(new GameItem(GameItem.lookup("Short Sword")));
+							shopItems.add(new GameItem(GameItem.lookup("Studded Armor")));
+							shopItems.add(new GameItem(GameItem.lookup("Leather Armor")));
+							shopItems.add(new GameItem(GameItem.lookup("Cape")));
+							GameItem healthPotion = new GameItem(GameItem.lookup("Potion"));
+							GameItemSuffix healing = new GameItemSuffix(GameItemSuffix.lookup("health"));
+							if(healing != null) {
+								healthPotion = healthPotion.addSuffix(healing);
+							}
+							healthPotion.quantity = 5;
+							shopItems.add(healthPotion);
+						} else if(gameState.playerClass.equals("MAGE")) {
+							for(int i = 0; i < 3; i ++) {
+								playerCoin += 10 * 6;//GameUtility.rollDie(6,0,false);
+							}
+							shopItems.add(new GameItem(GameItem.lookup("Robe")));
+							shopItems.add(new GameItem(GameItem.lookup("Linen Wrap")));
+							shopItems.add(new GameItem(GameItem.lookup("Long Staff")));
+							shopItems.add(new GameItem(GameItem.lookup("Short Staff")));
+							shopItems.add(new GameItem(GameItem.lookup("Wand")));//apply (random?) enchant(s)
+							shopItems.add(new GameItem(GameItem.lookup("Dagger")));
+							shopItems.add(new GameItem(GameItem.lookup("Necklace")));//rand ench
+							shopItems.add(new GameItem(GameItem.lookup("Ring")));//rand ench
+							GameItem healthPotion = new GameItem(GameItem.lookup("Potion"));
+							GameItemSuffix healing = new GameItemSuffix(GameItemSuffix.lookup("health"));
+							if(healing != null) {
+								healthPotion = healthPotion.addSuffix(healing);
+							}
+							healthPotion.quantity = 5;
+							shopItems.add(healthPotion);
+							GameItem energyPotion = new GameItem(GameItem.lookup("Potion"));
+							GameItemSuffix enervation = new GameItemSuffix(GameItemSuffix.lookup("energy"));
+							if(enervation != null) {
+								energyPotion = energyPotion.addSuffix(enervation);
+							}
+							energyPotion.quantity = 5;
+							shopItems.add(energyPotion);
+						} else {
+							//unknown playerClass?
+						}
+					}
+					while(creationIndex == 9 && playingDressUp) {
+						System.out.println("Select your starting ITEMs: [#]Buy / Sell Item -|- [D]one -|- [B]ack -|- e[X]it");
+						System.out.println(String.format("%-40s| %s %,.2f¢","Selected Items:","COIN:",playerCoin));//A155[¢]
+//						System.out.println(String.format("[ #]%1$-21.21s xQt:   Price¢ [ #]%1$-21.21s xQt:   Price¢ ","Item Name"));
+						if(selectedItemIndexes.size() > 0) {
+							for(int i = 0; i < selectedItemIndexes.size(); i++) {
+								int itemIndex = selectedItemIndexes.get(i);
+								GameItem item = shopItems.get(itemIndex);
+								System.out.print(String.format("[%2d]%-21.21s x%-2d:%8.2f¢ ",itemIndex+1,item.getFullItemName().toUpperCase(),item.quantity,item.value*item.quantity));
+								if((i + 1) % 2 == 0) {//have 2 items per line
+									System.out.println("");
+								}
+							}
+						} else {
+							System.out.println("NONE");
+						}
+						System.out.println("");
+						System.out.println("«·•O•·•O•·•O•·•O•·•O•·•O•·•O•·»  SHOP INVENTORY  «·•O•·•O•·•O•·•O•·•O•·•O•·•O•·»\n");//80 length
+						for(int i = 0; i < shopItems.size(); i++) {
+							if(selectedItemIndexes.contains(i)) {
+								System.out.print(String.format("[%2d]%-36.36s",i+1,"          Item Sold!                "));
+							} else {
+								GameItem item = shopItems.get(i);
+								System.out.print(String.format("[%2d]%-21.21s x%-2d:%8.2f¢ ",i+1,item.getFullItemName().toUpperCase(),item.quantity,item.value*item.quantity));//A155[¢]
+							}
+							if((i + 1) % 2 == 0) {//have 2 items per line
+								System.out.println("");
+							}
+						}
+						System.out.println("");
+						playerInput = sanitize(sc.nextLine());
+						if(playerInput.matches("(x|exit)")) {
+							System.out.println("Exiting CUSTOM character mode.");
+							playingDressUp = false;
+							break;
+						} else if(playerInput.matches("b(ack)?")) {
+							creationIndex--;
+						} else if(playerInput.matches("d(one)?")) {
+							//randomly enchant 1 chosen item?
+							
+							GameItem playerPants = new GameItem(GameItem.lookup("Pants"));
+							GameItem playerShoes = new GameItem(GameItem.lookup("Shoes"));
+							GameItem playerShirt = new GameItem(GameItem.lookup("Shirt"));
+							playerPants.isEquipped = true;
+							playerShirt.isEquipped = true;
+							playerShoes.isEquipped = true;
+							gameState.equipSlot_PANTS = playerPants;
+							gameState.equipSlot_SHIRT = playerShirt;
+							gameState.equipSlot_SHOES = playerShoes;
+							playerInv.add(playerPants);
+							playerInv.add(playerShirt);
+							playerInv.add(playerShoes);
+							//TODO: create GameItem "coin" to save value of playerCoin (OR, make this a field in GameState?)
+							Map<String,GameItem> startingItems = new HashMap<String,GameItem>();
+							for(GameItem item : playerInv) {
+								startingItems.put(item.name.toLowerCase(),item);
+							}
+							gameState.inventory = startingItems;
+							creationIndex++;
+						} else if(playerInput.matches("\\d+")) {
+							int itemIndex = Integer.parseInt(playerInput);
+							if(itemIndex >= 1 && itemIndex <= shopItems.size()) {//valid INDEX
+								GameItem item = shopItems.get(itemIndex - 1);
+								if(selectedItemIndexes.contains(itemIndex - 1)) {
+									playerCoin += item.value * item.quantity;
+									playerInv.remove(item);
+									gameState.currentWeight -= item.getTotalWeight();
+									selectedItemIndexes.remove(selectedItemIndexes.indexOf(itemIndex - 1));
+									System.out.println(item.getFullItemName().toUpperCase() + " sold.");
+								} else {
+									if(playerCoin >= item.value*item.quantity) {//can afford Item
+										selectedItemIndexes.add(itemIndex - 1);
+										playerCoin -= item.value * item.quantity;
+										gameState.currentWeight += item.getTotalWeight();
+										playerInv.add(item);
+										System.out.println(item.getFullItemName().toUpperCase() + " purchased.");
+									} else {//can't afford Item
+										System.out.println("You don't have enough COIN to purchase the " + item.name.toUpperCase() + ".");
+									}
+								}
+							} else {
+								System.out.println("Invalid ITEM #: " + itemIndex);
+							}
+						} else {
+							System.out.println("Invalid input: " + playerInput.toUpperCase());
+						}
+					}
+					//Spells
+					while(creationIndex == 10 && playingDressUp) {
+						System.out.println("Select your starting SPELLs: ([#]Spell Number -|- [D]one -|- [B]ack -|- e[X]it)");
+						//TODO: showSpellOptions based on playerClass
+						Map<String,GameSpell> playerSpells = new HashMap<String,GameSpell>();
+						playerSpells.put("Lightning",new GameSpell(GameSpell.lookup("Lightning")));
+						playerSpells.put("Fire Bolt",new GameSpell(GameSpell.lookup("Fire Bolt")));
+						playerSpells.put("Thunder",new GameSpell(GameSpell.lookup("Thunder")));
+						gameState.spellbook = playerSpells;
+						playerInput = sanitize(sc.nextLine());
+						if(playerInput.matches("(x|exit)")) {
+							System.out.println("Exiting CUSTOM character mode.");
+							playingDressUp = false;
+							break;
+						} else if(playerInput.matches("b(ack)?")) {
+							creationIndex--;
+						} else if(playerInput.matches("d(one)?")) {
+							gameState.spellbook = playerSpells;
+							creationIndex++;
+						} else {
+							System.out.println("Invalid input: " + playerInput.toUpperCase());
+						}
+					}
+					//Difficulty Setting?
+					if(creationIndex == 11) {
+						playingDressUp = false;//character creation done!
+						playerOneReady = true;
+					}
+				}
+				if(playerOneReady) {
+					Map<Integer,GameRoom> playerRooms = new HashMap<Integer,GameRoom>();
+					GameRoom startingRoom = new GameRoom(GameRoom.lookup(0));
+					playerRooms.put(startingRoom.roomId,startingRoom);
+					gameState.visitedRooms = playerRooms;
+					gameState.currentRoomId = 0;
+					System.out.println("Remember to EQUIP your purchased ITEMs!");
+				}
+			} else if(playerInput.matches("d(efault)?")) {
+				gameState = new GameState();
+				System.out.println("DEFAULT character selected.");
+				playerOneReady = true;
+			} else {
+				System.out.println("Invalid input: " + playerInput.toUpperCase());
+			}
+		}
 		//any more setup needed here?
 		System.out.println(narrate("room",gameState.currentRoomId + ""));
 	}
@@ -4787,6 +5221,9 @@ public class CommandLineInterface {
 						}
 					} else {//only 1 GameObject in the GameRoom of specified type
 						roomObject = foundObjects.values().iterator().next();//get first (and only) object in List
+						targetVolume = volumes.get(0);
+						objectIndex = 0;
+						volumeIndex = 0;
 					}
 					double distance = GameState.distanceBetween(thisVolume,targetVolume);//calculate how far from the player the specified GameObject is
 					if(roomObject.isContainer) {//if Object can be OPENed
@@ -4835,25 +5272,6 @@ public class CommandLineInterface {
 	 */
 	private static void options() {
 		System.out.println("No options available yet. Come back later!");
-	}
-
-	/**
-	 * rollDie(int,int,boolean) Returns the result of a Die + the roller's bonus, if any
-	 * @param dieVal The die to be rolled
-	 * @param bonus Any bonus to this roll
-	 * @param canCrit Indicates whether the check rolled against can be a CRITICAL roll.
-	 * @return Integer value from 1 to [die] representing the result of the d20 roll. A CRIT_FAIL is indicated by a -1. A CRIT_SUCCESS is indicated by a 
-	 */
-	private static int rollDie(int dieVal, int bonus, boolean canCrit) {
-		int roll = Double.valueOf(Math.random() * dieVal).intValue() + 1;//roll the die
-		if(canCrit && roll == 1) {
-			roll = -1;//CRIT_FAIL
-		} else if(canCrit && roll == dieVal) {
-			roll = 999;//CRIT_SUCCESS
-		} else {//normal roll
-			roll += bonus;
-		}
-		return roll;
 	}
 
 	/**
@@ -4909,7 +5327,7 @@ public class CommandLineInterface {
 			saveGameSlot = saveSlot;
 		}
 		fileOut = new FileOutputStream(saveGames[saveSlot - 1]);
-		fileOut.write(compress(Base64.getEncoder().encode(gameState.getBytes())));
+		fileOut.write(GameUtility.compress(Base64.getEncoder().encode(gameState.getBytes())));
 		fileOut.close();
 		System.out.println("Game Saved to slot " + saveSlot + ".");
 	}
@@ -4918,7 +5336,7 @@ public class CommandLineInterface {
 	 * showInventory() Displays the current contents of the Player's inventory
 	 * @return String representation of the Player's inventory
 	 */
-	private static String showInventory() {
+	private static String showInventory() {//TODO: generalize this so that it prints out ANY inventory, given the GameActor / GameShop
 		String invString = "«·•O•·•O•·•O•·•O•·•O•·•O•·•O•·»CURRENT INVENTORY«·•O•·•O•·•O•·•O•·•O•·•O•·•O•·»\n";
 		List<GameItem> invItems = new ArrayList<GameItem>();
 		invItems.addAll(gameState.inventory.values());
@@ -4977,7 +5395,8 @@ public class CommandLineInterface {
 					mapKeys.addAll(foundItems.keySet());
 					while(!gotObject) {//while no individual GameItem is specified as TARGET
 						System.out.println("Choose which ITEM, by it's ID, you want to TAKE (or X to EXIT):");//ask which Item to target
-						System.out.println(" ID |Item Details");
+						int len = GameUtility.getPrintedLength(mapKeys.size());
+						System.out.println(String.format("%"+len+"."+len+"s|Item Details","#"));
 						for(int i = 0; i < mapKeys.size(); i++) {//for each mapping...
 							String s = mapKeys.get(i);
 							int vIndex = Integer.parseInt(s.substring(0,s.indexOf('-')));//get the index of the GameVolume for the specified GameItem
@@ -4985,7 +5404,8 @@ public class CommandLineInterface {
 							double distance = GameState.distanceBetween(thisVolume,v);//calculate how far from the player the specified GameItem is
 							byte direction = GameState.getGeneralTraversalDirection(thisVolume,v);//get the general direction in which the GameItem is, in relation to the player
 							GameItem targetItem = foundItems.get(mapKeys.get(i));//get the GameItem specified
-							System.out.println(String.format("%-4d%s%s%s%d%s%d%s%.2f%s%s",i,": ",targetItem.name.toUpperCase(),", ",targetItem.curDurability,"/",targetItem.maxDurability,"HP - ",distance," meters, ",GameState.getDirectionName(direction)));
+							System.out.println(String.format("[%"+len+"."+len+"s]: %s, %d/%dHP - %.2f meters, %s",1,targetItem.name.toUpperCase(),targetItem.curDurability,targetItem.maxDurability,distance,GameState.getDirectionName(direction)));
+//							System.out.println(String.format("%-4d%s%s%s%d%s%d%s%.2f%s%s",i,": ",targetItem.name.toUpperCase(),", ",targetItem.curDurability,"/",targetItem.maxDurability,"HP - ",distance," meters, ",GameState.getDirectionName(direction)));
 						}
 						String input = sanitize(sc.nextLine());
 						if(input.equals("x")) {
@@ -5011,6 +5431,9 @@ public class CommandLineInterface {
 					}
 				} else {//only 1 GameItem in the GameRoom of specified type
 					roomItem = foundItems.values().iterator().next();//get first (and only) Item in List
+					targetVolume = volumes.get(0);
+					volumeIndex = 0;
+					itemIndex = 0;
 				}
 				if(gameState.canCarry(roomItem.getTotalWeight())) {//player can carry this item
 //					gameState.pickUpItem(item);
@@ -5031,13 +5454,17 @@ public class CommandLineInterface {
 							gameState.currentWeight += roomItem.getTotalWeight();
 						}
 						List<GameItem> volumeItems = targetVolume.items.get(object);
-						volumeItems.set(itemIndex,roomItem);
-						targetVolume.items.replace(object,volumeItems);
+						volumeItems.remove(roomItem);
+						if(volumeItems.size() > 0) {
+							targetVolume.items.replace(object,volumeItems);
+						} else {
+							targetVolume.items.remove(object);
+						}
 						room.interior.set(((targetVolume.zPos - 1) * room.width * room.length) + ((targetVolume.yPos - 1) * room.length) + (targetVolume.xPos - 1), targetVolume);
 						gameState.visitedRooms.replace(gameState.currentRoomId, room);
 						takeString = "You pick up the " + object.toUpperCase() + ".";
 					} else {
-						takeString = object.toUpperCase() + " #" + itemIndex + " is too far away to TAKE: " + String.format(".2f",distance) + " meters";
+						takeString = object.toUpperCase() + " #" + (itemIndex + 1) + " is too far away to TAKE: " + String.format(".2f",distance) + " meters";
 					}
 				} else {//player can't carry item
 					takeString = "Picking up " + object.toUpperCase() + " would over-encumber you.\nYou must DROP some items first.";
@@ -5097,67 +5524,70 @@ public class CommandLineInterface {
 					} else {
 						switch (itemToUnEquip.equipSlot) {//figure out what equipment slot the item is currently in
 						case GameItem.BACK:
-							GameState.equipSlot_BACK = null;//unequip the specified item
+							gameState.equipSlot_BACK = null;//unequip the specified item
 							unEquipString = "You slip the " + object.toUpperCase() + " from across your back";
 							break;
 						case GameItem.BELT:
-							GameState.equipSlot_BELT = null;
+							gameState.equipSlot_BELT = null;
 							unEquipString = "You unclasp the " + object.toUpperCase() + " from your waist";
 							break;
 						case GameItem.BOOTS:
-							GameState.equipSlot_BOOTS = null;
+							gameState.equipSlot_BOOTS = null;
 							unEquipString = "You unfasten the " + object.toUpperCase() + " from around your ankles";
 							break;
 						case GameItem.CUIRASS:
-							GameState.equipSlot_CUIRASS = null;
+							gameState.equipSlot_CUIRASS = null;
 							unEquipString = "You unbuckle the " + object.toUpperCase() + " from your torso";
 							break;
 						case GameItem.GAUNTLETS:
-							GameState.equipSlot_GAUNTLETS = null;
+							gameState.equipSlot_GAUNTLETS = null;
 							unEquipString = "You pull the " + object.toUpperCase() + " from your bare hands";
 							break;
 						case GameItem.GREAVES:
-							GameState.equipSlot_GREAVES = null;
+							gameState.equipSlot_GREAVES = null;
 							unEquipString = "You unstrap the " + object.toUpperCase() + " from your legs";
 							break;
 						case GameItem.HELM:
-							GameState.equipSlot_HELM = null;
+							gameState.equipSlot_HELM = null;
 							unEquipString = "You pull the " + object.toUpperCase() + " off your head";
 							break;
 						case GameItem.MAIN_HAND:
-							GameState.equipSlot_MAIN_HAND = null;
+							gameState.equipSlot_MAIN_HAND = null;
 							unEquipString = "You lower the " + object.toUpperCase() + " in your main hand";
 							break;
 						case GameItem.OFF_HAND:
-							GameState.equipSlot_OFF_HAND = null;
+							gameState.equipSlot_OFF_HAND = null;
 							unEquipString = "You lower the " + object.toUpperCase() + " in your off hand";
 							break;
+						case GameItem.TWO_HAND:
+							gameState.equipSlot_TWO_HAND = null;
+							unEquipString = "You lower the " + object.toUpperCase() + " in your hands";
 						case GameItem.PANTS:
-							GameState.equipSlot_PANTS = null;
+							gameState.equipSlot_PANTS = null;
 							unEquipString = "You pull off the " + object.toUpperCase();
 							break;
 						case GameItem.SHIRT:
-							GameState.equipSlot_SHIRT = null;
+							gameState.equipSlot_SHIRT = null;
 							unEquipString = "You pull the " + object.toUpperCase() + " over your head";
 							break;
 						case GameItem.SHOES:
-							GameState.equipSlot_SHOES = null;
+							gameState.equipSlot_SHOES = null;
 							unEquipString = "You kick off the " + object.toUpperCase() + " from your feet";
 							break;
 						case GameItem.RING:
-							GameState.equipSlot_RING = null;
+							gameState.equipSlot_RING = null;
 							unEquipString = "You slip the " + object.toUpperCase() + " from your index finger";
 							break;
 						case GameItem.AMULET:
-							GameState.equipSlot_AMULET = null;
+							gameState.equipSlot_AMULET = null;
 							unEquipString = "You untie the " + object.toUpperCase() + " from around your neck";
 							break;
 						case GameItem.EARRING:
-							GameState.equipSlot_EARRING = null;
+							gameState.equipSlot_EARRING = null;
 							unEquipString = "You unpin the " + object.toUpperCase() + " from yout ear";
 							break;
 						case GameItem.CLOAK:
-							GameState.equipSlot_CLOAK = null;
+							gameState.equipSlot_CLOAK = null;
 							unEquipString = "You remove the " + object.toUpperCase() + " from around your shoulders";
 							break;
 						default:

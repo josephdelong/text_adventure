@@ -1,0 +1,46 @@
+Entity Design Outline (EDO):
+--------------------------------------------------
+CAT|Details
+--------------------------------------------------
++	GameAsset{assetType,uid}
+|		GameActor{actorType,name,description,level,actorRace,actorClass,age,gender,height,weight,eyeDesc,hairDesc,skinDesc,initiative,speed,STR,DEX,CON,INT,WIS,CHA,STR_mod,DEX_mod,CON_mod,INT_mod,WIS_mod,CHA_mod,FORT_save,RFLX_save,WILL_save,hitDie,size,carryWeight,curHp,maxHp,curSp,maxSp,attackBonusMelee,attackBonusRanged,attackBonusMagic,armorClass,damageReduction,magicResistance,inventory,spells,languages,diplomacy,roomIndex,volumeIndex}
+=			GamePlayer{curXp,deathSavingThrow_SUCCESS,deathSavingThrow_FAILURE,numDeaths}
+=			GameEnemy{xpValue}
++			GameNpc{questGiver?,questTree?,isMerchant,merchantType,merchantInv,restockFrequency,lastRestockTime,coinReserve}
++		GameDiplomacy{primaryFaction,secondaryFaction,disposition,isTemporary?,startTime?,endTime?,isRamped?}
++		GameEffect{effectType,name,description}
++			GameTrapEffect{trigger,effects}
+|			GameSpellEffect{spellEffectType,dieVal,numDie,bonus}
++			GameEnvironmentEffect{envEffectType,isOneTime,numRounds,startTime}?
++			GameChanceEffect{percent,effectName,target}?
+=		GameItem{itemType,name,description,itemValue,itemWeight,quantity,rarity,owner?} - COIN, GEM, etc.
++			GameItemUse{curUses,maxUses,modifiers}
++				GameItemConsumable{effects}
++				GameItemKey{isPaired,pairedObject} - lockpick is considered a key
++			GameItemEquip{equipSlot,isEquipped,modifiers}
++				GameItemWield{attackType,damageType,damageDie,numDie,bonusDamage,minRange,maxRange,reach}
++				GameItemWorn{damageReduction,magicResistance}
+		GameItemModifier{modifierType(prefix/suffix),name,itemType,attackType,damageType,bonusCategories,bonusTypes,minBonuses,maxBonuses,baseValueAdd}
+=		GameObject{objectType,name,description,isLocked,key,pickChance,isTrapped,trapEffect,isMovable,isBreakable,curHp,maxHp}
++			GameActivator{isActive,activationTargets,isToggle}
++			GamePortal{isOpen}
++			GameContainer{isOpen,contents}
+=		GameRoom{id,description,length,width,height,volume}
+=		GameSpell{name,description,level,spCost,isFocus,focusTime,effects}
+=		GameVolume{xPos,yPos,zPos,canTraverse,passableDirs,isIncline,inclineDir,objects,enemies,items,effects}
++	GameCommand{name,+execute,+help}
++	GameState{players,visitedRooms,inCombat,activeCombat}
++	GameProcess{}
+=		GameCombat{queue,queueIndex,numRounds,actionLog}
++		GameCombatAction{actor,actorType,actionType,actionComplete}
++			GameCombatActionFree{name,context}
++			GameCombatActionMove{startIndex,endIndex,distance}
++			GameCombatActionAttack{attackType,implement,target,distance,didHit,amount}//spell is also an attackAction
+?			GameCombatActionDodge{}
++			GameCombatActionReady{action,triggeringAction,triggeringActor}//
++			GameCombatActionFull{}
++			GameCombatActionBonus{name,description}
++			GameCombatActionReaction{actionTaken}
++			GameCombatActionContinue{linkedAction,numLeft}
+=		GameCombatQueue{initiative,actor,actorType}
+=	GameUtility

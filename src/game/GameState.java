@@ -1,7 +1,24 @@
 package game;
 
+import game.asset.GameAsset;
+import game.asset.GameDiplomacy;
+import game.asset.GameItemModifier;
+import game.asset.actor.GameActor;
+import game.asset.actor.GameEnemy;
+import game.asset.effect.GameEffect;
+import game.asset.item.GameItem;
+import game.asset.item.GameItemConsumable;
+import game.asset.item.GameItemEquip;
+import game.asset.item.GameItemUse;
+import game.asset.item.GameItemWield;
+import game.asset.item.GameItemWorn;
+import game.asset.item.GameKey;
+import game.asset.object.GameObject;
+import game.asset.room.GameRoom;
+import game.asset.room.GameVolume;
+import game.asset.spell.GameSpell;
+
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -10,761 +27,243 @@ import java.util.Map;
  * @author Joseph DeLong
  */
 public class GameState {
-	/* MIGHT do these...
-	protected String name;
-	protected String class;
-	protected String race;
-	protected String alignment;//use a Tuple here? <x,y>
-	protected String deity;
-	protected int size;//Small=-1,Medium=0,Large=1
-	protected int age;
-	protected String gender;
-	protected int height;//in inches (50 = 4'2", 99 = 8'3")
-	protected double weight;//in Imperial lbs. Might just be an int
-	protected String eyeDesc;//color,size,special features, etc.
-	protected String hairDesc//^^;
-	protected String skinDesc//^^ minus size;
-	protected int speed;//how many feet per round you may move at normal speed
-	protected int hitDie;//(([rand(1,hitDie)]/hitDie) + abilityMod_CON) Hp gained per player level
-	protected int deathSavingThrow_SUCCESS;
-	protected int deathSavingThrow_FAILURE;
-	//do I want to do a DnD-like thing?
-	protected int abilityBase_STR;
-	protected int abilityBase_DEX;
-	protected int abilityBase_CON;
-	protected int abilityBase_INT;
-	protected int abilityBase_WIS;
-	protected int abilityBase_CHA;
-	protected int abilityMod_STR;
-	//etc
-	protected int reflex;//DEX saving throw
-	protected int fortitude;//CON saving throw
-	protected int willpower;//WIS saving throw
-	 */
-	protected int currentXp;
-	protected int currentLevel;
-	protected int currentHp;
-	protected int maxHp;
-	protected String heldItem;
-	protected Map<String,GameItem> inventory;
-	protected double currentWeight;
-	protected double maxWeight;
-	protected int currentRoomId;
-	protected boolean inInventory;
-	protected Map<Integer,GameRoom> visitedRooms;
-	protected int roomVolumeIndex;
-	//additional parameters
-	protected int armorClass;
-	protected int damageReduction;
-	protected int magicResistance;
-	protected int initiative;
-	protected Map<String,GameSpell> spellbook;
-	protected int currentSp;//current Spell Points
-	protected int maxSp;//max Spell Points
-	protected int attackBonusMelee;
-	protected int attackBonusRanged;
-	protected int attackBonusMagic;//probably won't differentiate this after all, but it's a neat idea
+	private static List<GameActor> players;
+	private static Map<Integer,GameRoom> visitedRooms;
+	private static boolean inCombat;
+	private static GameCombat activeCombat;
 
-	protected static GameItem equipSlot_BACK;
-	protected static GameItem equipSlot_BELT;
-	protected static GameItem equipSlot_BOOTS;
-	protected static GameItem equipSlot_CUIRASS;
-	protected static GameItem equipSlot_GAUNTLETS;
-	protected static GameItem equipSlot_GREAVES;
-	protected static GameItem equipSlot_HELM;
-	protected static GameItem equipSlot_MAIN_HAND;
-	protected static GameItem equipSlot_OFF_HAND;
-	protected static GameItem equipSlot_PANTS;
-	protected static GameItem equipSlot_SHIRT;
-	protected static GameItem equipSlot_SHOES;
-	protected static GameItem equipSlot_RING;
-	protected static GameItem equipSlot_AMULET;
-	protected static GameItem equipSlot_EARRING;
-	protected static GameItem equipSlot_CLOAK;
+	public static List<GameActor> getPlayers() {return players;}
+	public static Map<Integer, GameRoom> getVisitedRooms() {return visitedRooms;}
+	public static boolean isInCombat() {return inCombat;}
+	public static GameCombat getActiveCombat() {return activeCombat;}
+
+	public static void setPlayers(List<GameActor> players) {GameState.players = players;}
+	public static void setVisitedRooms(Map<Integer, GameRoom> visitedRooms) {GameState.visitedRooms = visitedRooms;}
+	public static void setInCombat(boolean inCombat) {GameState.inCombat = inCombat;}
+	public static void setActiveCombat(GameCombat activeCombat) {GameState.activeCombat = activeCombat;}
 
 	/**
-	 * GameState() Sets the current Game State to default values
+	 * initiateCombat(GameRoom) For the specified GameRoom, create a new Combat Encounter including all hostile entities
+	 * @param room The GameRoom in which the Combat Encounter will take place
+	 * @return A GameCombat, set up with all initially involved GameActors, including their Initiative order
 	 */
-	protected GameState() {
-		this.currentXp = 0;
-		this.currentLevel = 1;
-		this.currentHp = 10;
-		this.maxHp = 10;
-		this.heldItem = "lamp";
-		Map<String,GameItem> inv = new HashMap<String,GameItem>();
-		GameItem lamp = new GameItem("lamp",1,0,1,100,100,"null","A dim oil lamp. It gives off a warm glow up to 50 feet away.",1,GameItem.OFF_HAND,true);
-		GameItem shirt = new GameItem("shirt",0.5,0,1,-1,-1,"null","A comfortable homespun hemp shirt. Suitable for all seasons.",0,GameItem.SHIRT,true);
-		GameItem pants = new GameItem("pants",1.5,0,1,-1,-1,"null","A pair of well-worn homespun hemp trousers. They're quite comfortable and warm.",0,GameItem.PANTS,true);
-		GameItem shoes = new GameItem("shoes",0.5,0,1,-1,-1,"null","A pair of common walking shoes, well suited for everyday use.",0,GameItem.SHOES,true);
-		equipSlot_MAIN_HAND = lamp;
-		equipSlot_PANTS = pants;
-		equipSlot_SHIRT = shirt;
-		equipSlot_SHOES = shoes;
-		inv.put("lamp", lamp);
-		inv.put("shirt", shirt);
-		inv.put("pants", pants);
-		inv.put("shoes", shoes);
-		this.inventory = inv;
-		this.maxWeight = 100;
-		this.currentWeight = 3.5;//weight of currently carried items = (1 + 0.5 + 1.5 + 0.5)
-		this.currentRoomId = 0;
-		this.inInventory = false;
-		this.visitedRooms = new HashMap<Integer,GameRoom>();
-		this.roomVolumeIndex = 4;
-		GameItem sword = new GameItem("sword",2.5,5,1,-1,-1,"null","A rusty iron sabre.",2,GameItem.MAIN_HAND,false);
-		List<GameItem> skeletonInventory = new ArrayList<GameItem>();
-		skeletonInventory.add(sword);
-		GameEnemy skeleton = new GameEnemy("skeleton","A walking pile of bones, skull and all.",5,5,sword.name,10,skeletonInventory,10,0);
-		Map<String,List<GameEnemy>> roomEnemies = new HashMap<String,List<GameEnemy>>();
-		List<GameEnemy> enemies = new ArrayList<GameEnemy>();
-		enemies.add(skeleton);
-		roomEnemies.put(skeleton.name,enemies);
-		List<GameVolume> roomVolumes = GameRoom.makeRoomVolume(3, 3, 1);
-		GameVolume centerVolume = new GameVolume(2,2,1,true,(byte)0b11_11_11,false,(byte)0b00_00,null,roomEnemies,null);
-		roomVolumes.set(4, centerVolume);
-		GameRoom startRoom = new GameRoom(0,"This is a very spooky-looking room. Lots of cobwebs and dust and things like that.",3,3,1,roomVolumes);
-		this.visitedRooms.put(startRoom.roomId, startRoom);
-		//additional fields
-		this.armorClass = 10;
-		this.damageReduction = 0;
-		this.magicResistance = 0;
-		this.initiative = 0;
-		Map<String,GameSpell> spells = new HashMap<String,GameSpell>();
-		GameSpell firebolt = new GameSpell("firebolt",0,0,"Fires a small bolt of flame from your extended fingertip.",4,1,0,GameSpell.damage_FIRE);
-		spells.put(firebolt.name, firebolt);
-		//repeat for more Spells player should know from the start...
-		this.spellbook = spells;
-		this.currentSp = 10;
-		this.maxSp = 10;
-		this.attackBonusMelee = 0;
-		this.attackBonusRanged = 0;
-		this.attackBonusMagic = 0;
+	public GameCombat initiateCombat(GameRoom room) {
+		activeCombat = new GameCombat(room);
+		
+		return null;
 	}
 
 	/**
-	 * GameState(int,int,int,int,String,Map<String,GameItem>,double,double,int,boolean,Map<Integer,GameRoom>) Sets the current Game State to the passes in variables
-	 * @param currentXp The Player's current eXperience Points
-	 * @param currentLevel The Player's current Level
-	 * @param currentHp The Player's current Hit Points
-	 * @param maxHp The Player's maximum Hit Points
-	 * @param heldItem The Player's currently held Item
-	 * @param inventory The Player's current Inventory
-	 * @param currentWeight The Player's current carry weight
-	 * @param maxWeight The Player's maximum carry weight
-	 * @param currentRoomId The current Room number the Player is in
-	 * @param inInventory Indicates whether the Player is looking through their inventory
-	 * @param visitedRooms All Rooms the Player has visited & their current contents
-	 * @param roomVolumeIndex The index of the GameVolume in which the Player is currently located
+	 * initDefaultResources() 
 	 */
-	protected GameState(int currentXp, int currentLevel, int currentHp, int maxHp, String heldItem, Map<String,GameItem> inventory, double currentWeight, double maxWeight, int currentRoomId, boolean inInventory, Map<Integer,GameRoom> visitedRooms, int roomVolumeIndex) {
-		this.currentXp = currentXp;
-		this.currentLevel = currentLevel;
-		this.currentHp = currentHp;
-		this.maxHp = maxHp;
-		this.heldItem = heldItem;
-		this.inventory = inventory;
-		this.currentWeight = currentWeight;
-		this.maxWeight = maxWeight;
-		this.currentRoomId = currentRoomId;
-		this.inInventory = inInventory;
-		this.visitedRooms = visitedRooms;
-		this.roomVolumeIndex = roomVolumeIndex;
-	}
+	public static void initDefaultResources() {
+		//base GameAssets needed to play the Game
+		//GameEnemy
+		if(GameEnemy.getEnemyTemplates() == null || GameEnemy.getEnemyTemplates().size() == 0) {
+			GameEnemy skeleton = new GameEnemy(GameAsset.assetType_ACTOR_ENEMY, GameAsset.generateUid("GameEnemy"),GameActor.actorType_ENEMY,"skeleton",
+					"A walking pile of bones, skull and all.",1,GameActor.race_UNDEAD,GameActor.class_FIGHTER,0,"null",60,100,"null","null","null",
+					0,6,10,10,10,10,10,10,0,0,0,0,0,0,0,0,0,6,0,100,10,10,10,10,0,0,0,10,0,0,new ArrayList<GameItem>(),new ArrayList<GameSpell>(),
+					new ArrayList<String>(),new ArrayList<GameDiplomacy>(),-1,-1,null,null,null,null,null,null,null,null,null,null,null,null,null,null,
+					null,null,null,10,true);
+			GameEnemy.add(skeleton);
+			GameEnemy zombie = new GameEnemy(GameAsset.assetType_ACTOR_ENEMY,GameAsset.generateUid("GameEnemy"),GameActor.actorType_ENEMY,"zombie",
+					"A shambling, rotting corpse, artificially animated by necromantic magic.",1,GameActor.race_UNDEAD,GameActor.class_FIGHTER,0,"null",
+					60,120,"null","null","null",0,6,10,10,10,10,10,10,0,0,0,0,0,0,0,0,0,6,0,100,15,15,5,5,0,0,0,10,0,0,new ArrayList<GameItem>(),
+					new ArrayList<GameSpell>(),new ArrayList<String>(),new ArrayList<GameDiplomacy>(),-1,-1,null,null,null,null,null,null,null,null,null,
+					null,null,null,null,null,null,null,null,15,true);
+			GameEnemy.add(zombie);
+		}
+		//GameItem
+		if(GameItem.getItemTemplates() == null || GameItem.getItemTemplates().size() == 0) {
+//			GameItem template = new GameItem(GameAsset.assetType_ITEM,"uid","itemType","name","description",0/*itemValue*/,0/*itemWeight*/,0/*quantity*/,0/*rarity*/,"owner");
+//			GameItem use = new GameItemUse(GameAsset.assetType_ITEM_USE,"uid",GameItem.itemType_USE,"name","description",0/*itemValue*/,0/*itemWeight*/,0/*quantity*/,0/*rarity*/,"owner",0/*curUses*/,0/*maxUses*/,null/*modifiers*/);
+//			GameItem consumable = new GameItemConsumable(GameAsset.assetType_ITEM_CONSUMABLE,"uid",GameItem.itemType_CONSUMABLE,"name","description",0/*itemValue*/,0/*itemWeight*/,0/*quantity*/,0/*rarity*/,"owner",0/*curUses*/,0/*maxUses*/,null/*modifiers*/,null/*effects*/);
+//			GameItem key = new GameKey(GameAsset.assetType_ITEM_KEY,"uid",GameItem.itemType_KEY,"name","description",0/*itemValue*/,0/*itemWeight*/,0/*quantity*/,0/*rarity*/,"owner",0/*curUses*/,0/*maxUses*/,null/*modifiers*/,false/*isPaired*/,"pairedObject");
+//			GameItem equip = new GameItemEquip(GameAsset.assetType_ITEM_EQUIP,"uid",GameItem.itemType_EQUIP,"name","description",0/*itemValue*/,0/*itemWeight*/,0/*quantity*/,0/*rarity*/,"owner","equipSlot",false/*isEquipped*/,null/*modifiers*/);
+//			GameItem wield = new GameItemWield(GameAsset.assetType_ITEM_WIELD,"uid","itemType","name","description",0/*itemValue*/,0/*itemWeight*/,0/*quantity*/,0/*rarity*/,"owner","equipSlot",false/*isEquipped*/,null/*modifiers*/,-1/*attackType*/,-1/*damageType*/,0/*damageDie*/,0/*numDie*/,0/*bonusDamage*/,0/*minRange*/,0/*maxRange*/,0/*reach*/);
+//			GameItem worn = new GameItemWorn(GameAsset.assetType_ITEM_WORN,"uid","itemType","name","description",0/*itemValue*/,0/*itemWeight*/,0/*quantity*/,0/*rarity*/,"owner","equipSlot",false/*isEquipped*/,null/*modifiers*/,0/*damageReduction*/,0/*magicResistance*/,0/*armorClass*/);
 
-	/**
-	 * GameState(GameState,int,int,int,int,int,Map<String,GameSpell>,int,int,int,int,int) Constructor with additional parameters
-	 * @param gameState The GameState to add these additional parameter values to
-	 * @param armorClass The Player's current AC
-	 * @param damageReduction The Player's current DR
-	 * @param magicResistance The Player's current MR
-	 * @param initiative The Player's current Initiative
-	 * @param spellbook The Player's Spells
-	 * @param currentSp The Player's current SP
-	 * @param maxSp The Player's maximum SP
-	 * @param attackBonusMelee The Player's current Melee Attack Bonus
-	 * @param attackBonusRanged The Player's current Ranged Attack Bonus
-	 * @param attackBonusMagic The Player's currenct Magic Attack Bonus
-	 */
-	protected GameState(GameState gameState, int armorClass, int damageReduction, int magicResistance, int initiative, Map<String,GameSpell> spellbook, int currentSp, int maxSp, int attackBonusMelee, int attackBonusRanged, int attackBonusMagic) {
-		this.currentXp = gameState.currentXp;
-		this.currentLevel = gameState.currentLevel;
-		this.currentHp = gameState.currentHp;
-		this.maxHp = gameState.maxHp;
-		this.heldItem = gameState.heldItem;
-		this.inventory = gameState.inventory;
-		this.currentWeight = gameState.currentWeight;
-		this.maxWeight = gameState.maxWeight;
-		this.currentRoomId = gameState.currentRoomId;
-		this.inInventory = gameState.inInventory;
-		this.visitedRooms = gameState.visitedRooms;
-		this.roomVolumeIndex = gameState.roomVolumeIndex;
-		this.armorClass = armorClass;
-		this.damageReduction = damageReduction;
-		this.magicResistance = magicResistance;
-		this.initiative = initiative;
-		if(spellbook == null || spellbook.isEmpty()) {
-			this.spellbook = new HashMap<String,GameSpell>();
-		} else {
-			this.spellbook = spellbook;
-		}
-		this.currentSp = currentSp;
-		this.maxSp = maxSp;
-		this.attackBonusMelee = attackBonusMelee;
-		this.attackBonusRanged = attackBonusRanged;
-		this.attackBonusMagic = attackBonusMagic;
-	}
+			GameItem sword = new GameItemWield(GameAsset.assetType_ITEM_WIELD,"uid",GameItem.itemType_WEAPON,"sword","A rusty iron sabre.",5/*itemValue*/,2/*itemWeight*/,1/*quantity*/,0/*rarity*/,"null",GameItem.MAIN_HAND,false/*isEquipped*/,new ArrayList<GameItemModifier>(),GameItem.attackType_MELEE,GameItem.damageType_SLASH,6/*damageDie*/,1/*numDie*/,0/*bonusDamage*/,0/*minRange*/,1/*maxRange*/,0/*reach*/);
+			GameItem.add(sword);
+			GameItem shortSword = new GameItemWield(GameAsset.assetType_ITEM_WIELD,"uid",GameItem.itemType_WEAPON,"short sword","A medium-sized blade, for piercing through gaps in an enemy's defenses.",10/*itemValue*/,2/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.MAIN_HAND,false/*isEquipped*/,new ArrayList<GameItemModifier>(),GameItem.attackType_MELEE,GameItem.damageType_PIERCE,6/*damageDie*/,1/*numDie*/,0/*bonusDamage*/,0/*minRange*/,1/*maxRange*/,0/*reach*/);
+			GameItem.add(shortSword);
+			GameItem longSword = new GameItemWield(GameAsset.assetType_ITEM_WIELD,"uid",GameItem.itemType_WEAPON,"long sword","A long, straight, steel blade, with fullers for bloodletting should you pierce through an opponent's defenses.",15/*itemValue*/,3/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.MAIN_HAND,false/*isEquipped*/,new ArrayList<GameItemModifier>(),GameItem.attackType_MELEE,GameItem.damageType_SLASH,8/*damageDie*/,1/*numDie*/,0/*bonusDamage*/,0/*minRange*/,1/*maxRange*/,0/*reach*/);
+			GameItem.add(longSword);
+			GameItem greatSword = new GameItemWield(GameAsset.assetType_ITEM_WIELD,"uid",GameItem.itemType_WEAPON,"gread sword","A blade about three-fifths as long as the weilder is tall, supported by a longer two-handed grip. This sword is specially made for hewing through thick armor.",50/*itemValue*/,6/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.TWO_HAND,false/*isEquipped*/,new ArrayList<GameItemModifier>(),GameItem.attackType_MELEE,GameItem.damageType_SLASH,6/*damageDie*/,2/*numDie*/,0/*bonusDamage*/,0/*minRange*/,1/*maxRange*/,0/*reach*/);
+			GameItem.add(greatSword);
+			GameItem dagger = new GameItemWield(GameAsset.assetType_ITEM_WIELD,"uid",GameItem.itemType_WEAPON,"dagger","A small, quick steel blade suitable for dispatching foes in close quarters. Also useful as a letter opener.",5/*itemValue*/,1/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.MAIN_HAND,false/*isEquipped*/,new ArrayList<GameItemModifier>(),GameItem.attackType_MELEE,GameItem.damageType_PIERCE,4/*damageDie*/,1/*numDie*/,0/*bonusDamage*/,0/*minRange*/,1/*maxRange*/,0/*reach*/);
+			GameItem.add(dagger);
+			GameItem shortStaff = new GameItemWield(GameAsset.assetType_ITEM_WIELD,"uid",GameItem.itemType_WEAPON,"short staff","A stout rod of intricately carved Ash, about 3 feet in length, with adornments of beads, feathers, and other small arcane reagants. There are dimply pulsing magic runes across the head of the staff.",10/*itemValue*/,4/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.MAIN_HAND,false/*isEquipped*/,new ArrayList<GameItemModifier>(),GameItem.attackType_MELEE,GameItem.damageType_BLUDGEON,6/*damageDie*/,1/*numDie*/,0/*bonusDamage*/,0/*minRange*/,1/*maxRange*/,0/*reach*/);
+			GameItem.add(shortStaff);
+			GameItem longStaff = new GameItemWield(GameAsset.assetType_ITEM_WIELD,"uid",GameItem.itemType_WEAPON,"long staff","A strong rod of Oak, about 6 feet in length, with arcane runes and small magic crystals inset into the surface of the staff's upper third. The runes and gems pulsate with a faint magic glow.",50/*itemValue*/,6/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.TWO_HAND,false/*isEquipped*/,new ArrayList<GameItemModifier>(),GameItem.attackType_MELEE,GameItem.damageType_BLUDGEON,8/*damageDie*/,1/*numDie*/,0/*bonusDamage*/,0/*minRange*/,1/*maxRange*/,0/*reach*/);
+			GameItem.add(longStaff);
+			GameItem shortBow = new GameItemWield(GameAsset.assetType_ITEM_WIELD,"uid",GameItem.itemType_WEAPON,"short bow","A fast and mobile bow, which can hit targets up to 150 feet away.",25/*itemValue*/,2/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.TWO_HAND,false/*isEquipped*/,new ArrayList<GameItemModifier>(),GameItem.attackType_RANGED,GameItem.damageType_PIERCE,6/*damageDie*/,1/*numDie*/,0/*bonusDamage*/,3/*minRange*/,30/*maxRange*/,0/*reach*/);
+			GameItem.add(shortBow);
+			GameItem longBow = new GameItemWield(GameAsset.assetType_ITEM_WIELD,"uid",GameItem.itemType_WEAPON,"long bow","A stout bow that stands about as tall as the person wielding it. Although this weapon is large and cumbersome, if used skillfully, it can hit targets up to 300 feet away.",50/*itemValue*/,8/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.TWO_HAND,false/*isEquipped*/,new ArrayList<GameItemModifier>(),GameItem.attackType_RANGED,GameItem.damageType_PIERCE,8/*damageDie*/,1/*numDie*/,0/*bonusDamage*/,6/*minRange*/,60/*maxRange*/,0/*reach*/);
+			GameItem.add(longBow);
+			GameItem mace = new GameItemWield(GameAsset.assetType_ITEM_WIELD,"uid",GameItem.itemType_WEAPON,"mace","A solid steel weight affixed to the top of a sturdy wooden handle, with hemishperical protrusions across the surface. This weapon is meant for smashing and bashing and so it doesn't require a light touch.",5/*itemValue*/,4/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.MAIN_HAND,false/*isEquipped*/,new ArrayList<GameItemModifier>(),GameItem.attackType_MELEE,GameItem.damageType_BLUDGEON,6/*damageDie*/,1/*numDie*/,0/*bonusDamage*/,0/*minRange*/,1/*maxRange*/,0/*reach*/);
+			GameItem.add(mace);
+			GameItem maul = new GameItemWield(GameAsset.assetType_ITEM_WIELD,"uid",GameItem.itemType_WEAPON,"maul","A mighty mallet of wood and steel, with a 2-handed haft. This weapon is suitable for breaking bones and bruising flesh.",10/*itemValue*/,10/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.TWO_HAND,false/*isEquipped*/,new ArrayList<GameItemModifier>(),GameItem.attackType_MELEE,GameItem.damageType_BLUDGEON,6/*damageDie*/,2/*numDie*/,0/*bonusDamage*/,0/*minRange*/,1/*maxRange*/,0/*reach*/);
+			GameItem.add(maul);
+			GameItem wand = new GameItemWield(GameAsset.assetType_ITEM_WIELD,"uid",GameItem.itemType_WEAPON,"wand","A slender rod of wood, finely finished with a magical gem in the pommel. This weapon is capable of having Spells imprinted on it, and once properly attuned, casting the Spell(s) which have been imprinted.",15/*itemValue*/,1/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.MAIN_HAND,false/*isEquipped*/,new ArrayList<GameItemModifier>(),GameItem.attackType_MAGIC,GameItem.damageType_MAGIC,0/*damageDie*/,0/*numDie*/,0/*bonusDamage*/,0/*minRange*/,20/*maxRange*/,0/*reach*/);
+			GameItem.add(wand);
 
-//	/**
-//	 * pickUpItem(GameItem) Adds the specified GameItem to the Player's Inventory
-//	 * @param item The GameItem to be picked up
-//	 */
-//	protected void pickUpItem(GameItem item) {
-//		if(inventory.containsKey(item.name)) {//if Player already has at least 1 of the item
-//			GameItem curItem = inventory.get(item.name);
-//			if(curItem.maxUses > 0) {//if item is a use-based item
-//				curItem.remainingUses = Math.min(curItem.maxUses, curItem.remainingUses + item.remainingUses);//refill the item's uses
-//				inventory.put(item.name, curItem);//save over the old item with the updated item
-//			} else {//item is quantity-based
-//				curItem.quantity += item.quantity;//add quantity of new item to quantity of old item
-//				inventory.put(item.name, curItem);//save over the old item with the updated item
-//				currentWeight += item.getTotalWeight();
-//			}
-//		} else {//Player does not yet carry this item
-//			inventory.put(item.name, item);//add new item to inventory
-//		}
-//		GameRoom room = GameRoom.lookup(currentRoomId);
-//		Map<String,GameItem> roomItems = room.items;//get list of items in the current room
-//		roomItems.remove(item);//remove the picked up item from item list
-//		room.items = roomItems;//save the room's items
-//		visitedRooms.replace(currentRoomId, room);
-//	}
+			GameItem fullPlate = new GameItemWorn(GameAsset.assetType_ITEM_WORN,"uid",GameItem.itemType_ARMOR,"full plate","Full Plate armor consists of shaped, interlocking metal plates to cover the entire body. A suit of plate includes gauntlets, heavy leather boots, a visored helmet, and thick layers of padding underneath the armor. Buckles and straps distribute the weight over the body.",1500/*itemValue*/,65/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.CUIRASS,false/*isEquipped*/,new ArrayList<GameItemModifier>(),0/*damageReduction*/,0/*magicResistance*/,8/*armorClass*/);
+			GameItem.add(fullPlate);
+			GameItem chainMail = new GameItemWorn(GameAsset.assetType_ITEM_WORN,"uid",GameItem.itemType_ARMOR,"chain mail","Made of interlocking metal rings, Chain Mail includes a layer of quilted fabric worn underneath the mail to prevent chafing and to cushion the impact of blows. The suit includes gauntlets.",75/*itemValue*/,55/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.CUIRASS,false/*isEquipped*/,new ArrayList<GameItemModifier>(),0/*damageReduction*/,0/*magicResistance*/,6/*armorClass*/);
+			GameItem.add(chainMail);
+			GameItem leatherArmor = new GameItemWorn(GameAsset.assetType_ITEM_WORN,"uid",GameItem.itemType_ARMOR,"leather armor","The Breastplate and shoulder protectors of this armor are made of leather that has been stiffened by being boiled in oil. The rest of the armor is made of softer and more flexible materials.",10/*itemValue*/,10/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.CUIRASS,false/*isEquipped*/,new ArrayList<GameItemModifier>(),0/*damageReduction*/,0/*magicResistance*/,2/*armorClass*/);
+			GameItem.add(leatherArmor);
+			GameItem studdedArmor = new GameItemWorn(GameAsset.assetType_ITEM_WORN,"uid",GameItem.itemType_ARMOR,"studded armor","Made from tough but flexible leather, studded leather is reinforced with close-set rivets or spikes.",45/*itemValue*/,13/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.CUIRASS,false/*isEquipped*/,new ArrayList<GameItemModifier>(),0/*damageReduction*/,0/*magicResistance*/,3/*armorClass*/);
+			GameItem.add(studdedArmor);
+			GameItem buckler = new GameItemWorn(GameAsset.assetType_ITEM_WORN,"uid",GameItem.itemType_ARMOR,"buckler","A small, round, wooden shield with a row of iron studs across the front. It has a sturdy leather strap on the back to hold.",10/*itemValue*/,5/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.OFF_HAND,false/*isEquipped*/,new ArrayList<GameItemModifier>(),0/*damageReduction*/,0/*magicResistance*/,2/*armorClass*/);
+			GameItem.add(buckler);
 
-	/**
-	 * distanceBetween(GameVolume,GameVolume) Calculates the distance between the center of the FROM volume and the center of the TO volume, in increments of GameVolume
-	 * @param from The GameVolume that represents the starting location
-	 * @param to The GameVolume that represents the target location
-	 * @return The distance between the FROM and the TO volumes, in double precision, or 0 if the 2 volumes are the same
-	 */
-	protected static double distanceBetween(GameVolume from, GameVolume to) {
-		double distance = -1;
-		if(from != null && to != null) {
-			if(from.xPos == to.xPos && from.yPos == to.yPos && from.zPos == to.zPos) {//volumes are the same
-				distance = 0;
-			} else {
-				distance = Math.sqrt(Math.pow(from.xPos - to.xPos, 2) + Math.pow(from.yPos - to.yPos, 2) + Math.pow(from.zPos - to.zPos, 2));
-			}
-		}
-		return distance;
-	}
+			GameItem shirt = new GameItemEquip(GameAsset.assetType_ITEM_EQUIP,"uid",GameItem.itemType_CLOTHING,"shirt","A comfortable homespun hemp shirt. Suitable for all seasons.",0/*itemValue*/,1/*itemWeight*/,1/*quantity*/,0/*rarity*/,"null",GameItem.SHIRT,false/*isEquipped*/,new ArrayList<GameItemModifier>());
+			GameItem.add(shirt);
+			GameItem pants = new GameItemEquip(GameAsset.assetType_ITEM_EQUIP,"uid",GameItem.itemType_CLOTHING,"pants","A pair of well-worn homespun hemp trousers. They're quite comfortable and warm.",0/*itemValue*/,2/*itemWeight*/,1/*quantity*/,0/*rarity*/,"null",GameItem.PANTS,false/*isEquipped*/,new ArrayList<GameItemModifier>());
+			GameItem.add(pants);
+			GameItem shoes = new GameItemEquip(GameAsset.assetType_ITEM_EQUIP,"uid",GameItem.itemType_CLOTHING,"shoes","A pair of common walking shoes, well suited for everyday use.",0/*itemValue*/,1/*itemWeight*/,1/*quantity*/,0/*rarity*/,"null",GameItem.SHOES,false/*isEquipped*/,new ArrayList<GameItemModifier>());
+			GameItem.add(shoes);
+			GameItem cape = new GameItemEquip(GameAsset.assetType_ITEM_EQUIP,"uid",GameItem.itemType_CLOTHING,"cape","A dark brown velvet cape, embroidered along the edges with a simple floral pattern. It has a shiny brass button and a braided cord at the collar to fasten it securely, but comfortably, around your neck.",15/*itemValue*/,3/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.CLOAK,false/*isEquipped*/,new ArrayList<GameItemModifier>());
+			GameItem.add(cape);
+			GameItem robe = new GameItemEquip(GameAsset.assetType_ITEM_EQUIP,"uid",GameItem.itemType_CLOTHING,"robe","A luxurious silken robe, with long-flowing arms, the interiors of which are lined with a series of pockets for storage of and quick access to magical reagents.",50/*itemValue*/,4/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.CUIRASS,false/*isEquipped*/,new ArrayList<GameItemModifier>());
+			GameItem.add(robe);
+			GameItem linenWrap = new GameItemEquip(GameAsset.assetType_ITEM_EQUIP,"uid",GameItem.itemType_CLOTHING,"linen wrap","A single, long swath of Linen cloth, which wraps around the wearer's body in a comfortable & fully covering way.",10/*itemValue*/,5/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.CUIRASS,false/*isEquipped*/,new ArrayList<GameItemModifier>());
+			GameItem.add(linenWrap);
+			GameItem necklace = new GameItemEquip(GameAsset.assetType_ITEM_EQUIP,"uid",GameItem.itemType_TRINKET,"necklace","An ornate decorative pendant, hung on a braided black cord.",50/*itemValue*/,1/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.AMULET,false/*isEquipped*/,new ArrayList<GameItemModifier>());
+			GameItem.add(necklace);
+			GameItem ring = new GameItemEquip(GameAsset.assetType_ITEM_EQUIP,"uid",GameItem.itemType_TRINKET,"ring","A simple loop of metal, which fits snugly around your index finger.",25/*itemValue*/,0/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",GameItem.RING,false/*isEquipped*/,new ArrayList<GameItemModifier>());
+			GameItem.add(ring);
 
-	/**
-	 * distanceSquaredBetween(GameVolume,GameVolume) Calculates the distance, squared, between the center of the FROM volume and the center of the TO volume, in increments of GameVolume. This method saves the processing power of calculating the SquareRoot of the Sum of xDistance + yDIstance + zDistance.
-	 * @param from The GameVolume that represents the starting location
-	 * @param to The GameVolume that represents the target location
-	 * @return The distance, squared, between the FROM and the TO volumes, in double precision, or 0 if the 2 volumes are the same
-	 */
-	protected static double distanceSquaredBetween(GameVolume from, GameVolume to) {
-		double distance = -1;
-		if(from != null && to != null) {
-			if(from.xPos == to.xPos && from.yPos == to.yPos && from.zPos == to.zPos) {//volumes are the same
-				distance = 0;
-			} else {
-				distance = Math.pow(from.xPos - to.xPos, 2) + Math.pow(from.yPos - to.yPos, 2) + Math.pow(from.zPos - to.zPos, 2);
-			}
-		}
-		return distance;
-	}
+			GameItem lamp = new GameItemUse(GameAsset.assetType_ITEM_USE,"uid",GameItem.itemType_USE,"lamp","A dim oil lamp. It gives off a warm glow up to 50 feet away.",0/*itemValue*/,2/*itemWeight*/,1/*quantity*/,0/*rarity*/,"null",100/*curUses*/,100/*maxUses*/,new ArrayList<GameItemModifier>());
+			GameItem.add(lamp);
 
-	/**
-	 * getTraversalPath(GameVolume,GameVolume) Returns a list of GameVolumes which lie along the calculated traversal path. The traversal path should be a relatively straight line between the 2 GameVolume parameters.
-	 * @param from The GameVolume from which to start traversal
-	 * @param to The GameVolume to which to find a traversal path
-	 * @return A list of GameVolumes that lie along the traversal path
-	 */
-	protected List<GameVolume> getTraversalPath(GameVolume from, GameVolume to) {
-		List<GameVolume> traversalVolumes = new ArrayList<GameVolume>();
-		if(from.xPos == to.xPos && from.yPos == to.yPos && from.zPos == to.zPos) {
-			return traversalVolumes;//NO TRAVEL DIRECTION
-		}
-//		GameRoom room = this.visitedRooms.get(this.currentRoomId);
-		GameVolume step = from;
-		traversalVolumes.add(step);
-		int xDistance = to.xPos - from.xPos;
-		int yDistance = to.yPos - from.yPos;
-		int zDistance = to.zPos - from.zPos;
-		int totalSteps = Math.max(Math.abs(xDistance),Math.max(Math.abs(yDistance),Math.abs(zDistance)));
-		int stepIndex = 0;
-		while(stepIndex < totalSteps) {//while not at destination yet
-			int nextTraversalDirection = getTraversalDirection(step,to,totalSteps,stepIndex,xDistance,yDistance,zDistance);
-			step = getNextVolumeInDirection(step,nextTraversalDirection);
-			traversalVolumes.add(step);
-//			traversalPathIndexes.add(((step.zPos - 1) * room.width * room.length) + ((step.yPos - 1) * room.length) + (step.xPos - 1));
-			stepIndex++;
-		}
-		return traversalVolumes;
-	}
+			GameItem lockpick = new GameKey(GameAsset.assetType_ITEM_KEY,"uid",GameItem.itemType_KEY,"lockpick","A thin, flexible, metal tool, small enough to insert into the keyhole of a lock. This single-use key substitute can be used to unlock all but the most secure keylocks.",5/*itemValue*/,0/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",1/*curUses*/,1/*maxUses*/,new ArrayList<GameItemModifier>(),false/*isPaired*/,"null");
+			GameItem.add(lockpick);
 
-	/**
-	 * getTraversalPathIndexes(GameVolume,GameVolume) Returns a list of Integers representing the Array indexes of the GameVolumes which lie along the calculated traversal path. The traversal path should be a relatively straight line between the 2 GameVolumes.
-	 * @param from The GameVolume from which to start traversal
-	 * @param to The GameVolume to which to find a traversal path
-	 * @return A list of Integers representing the array indexes of GameVolumes that lie along the traversal path
-	 */
-	protected List<Integer> getTraversalPathIndexes(GameVolume from, GameVolume to) {
-		List<Integer> traversalPathIndexes = new ArrayList<Integer>();
-		if(from.xPos == to.xPos && from.yPos == to.yPos && from.zPos == to.zPos) {
-			return traversalPathIndexes;//NO TRAVEL DIRECTION
-		}
-		GameRoom room = this.visitedRooms.get(this.currentRoomId);
-		GameVolume step = from;
-		int xDistance = to.xPos - from.xPos;
-		int yDistance = to.yPos - from.yPos;
-		int zDistance = to.zPos - from.zPos;
-		int totalSteps = Math.max(Math.abs(xDistance),Math.max(Math.abs(yDistance),Math.abs(zDistance)));
-		int stepIndex = 0;
-		while(stepIndex < totalSteps) {//while not at destination yet
-			int nextTraversalDirection = getTraversalDirection(step,to,totalSteps,stepIndex,xDistance,yDistance,zDistance);
-			step = getNextVolumeInDirection(step,nextTraversalDirection);
-			traversalPathIndexes.add(((step.zPos - 1) * room.width * room.length) + ((step.yPos - 1) * room.length) + (step.xPos - 1));
-			stepIndex++;
-		}
-		return traversalPathIndexes;
-	}
+			GameItem potion = new GameItemConsumable(GameAsset.assetType_ITEM_CONSUMABLE,"uid",GameItem.itemType_CONSUMABLE,"potion","A small, corked glass bottle, containing a gently swirling tincture. A paper label is affixed to the bottle, with the name and known effects of the potion.",10/*itemValue*/,1/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",1/*curUses*/,1/*maxUses*/,new ArrayList<GameItemModifier>(),new ArrayList<GameEffect>());
+			GameItem.add(potion);
+			GameItem bandage = new GameItemConsumable(GameAsset.assetType_ITEM_CONSUMABLE,"uid",GameItem.itemType_CONSUMABLE,"bandage","A small roll of absorbent cloth, for wrapping tightly around cuts and abrasions. It is treated with a soothing ointment to numb pain and speed the healing process.",5/*itemValue*/,0/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null",1/*curUses*/,1/*maxUses*/,new ArrayList<GameItemModifier>(),new ArrayList<GameEffect>());
+			GameItem.add(bandage);
 
-	/**
-	 * getTraversalDirection(GameVolume,GameVolume,int,int,int,int,int) Given 2 GameVolumes within the same GameRoom, the number of 
-	 * traversal steps already taken, and the total distance to travel on the X, Y, and Z axes, this method will return the next 
-	 * direction of traversal from the indicated GameVolume
-	 * @param from The GameVolume from which to begin calculating traversal direction
-	 * @param to The GameVolume to which the traversal will navigate to
-	 * @param totalSteps The total number of steps to occur from the original startign GameVolume to the ultimate end GameVolume
-	 * @param stepIndex The current traversal index (how many steps have already been taken + 1)
-	 * @param xDistance The total distance to travel on the X axis
-	 * @param yDistance The total distance to travel on the Y axis
-	 * @param zDistance The total distance to travel on the Z axis
-	 * @return A byte representation of the next direction of traversal between the 2 indicated GameVolumes
-	 */
-	protected static byte getTraversalDirection(GameVolume from, GameVolume to, int totalSteps, int stepIndex, int xDistance, int yDistance, int zDistance) {
-		byte direction = (1 << 0 | 1 << 2 | 1 << 4);
-		//IF the ratio of stepIndex:totalSteps IS EQUIVALENT TO the ratio of axisIndex:axisDistance THEN travel on that Axis
-		boolean travelX = xDistance > 0 && ((stepIndex + 1) * xDistance / totalSteps) >= (1 + (stepIndex * xDistance / totalSteps));
-		boolean travelY = yDistance > 0 && ((stepIndex + 1) * yDistance / totalSteps) >= (1 + (stepIndex * yDistance / totalSteps));
-		boolean travelZ = zDistance > 0 && ((stepIndex + 1) * zDistance / totalSteps) >= (1 + (stepIndex * zDistance / totalSteps));
-		int xDir = 1;
-		int yDir = 1;
-		int zDir = 1;
-		if(travelX && xDistance > 0) {
-			xDir = 2;
-		} else if(travelX && xDistance < 0) {
-			xDir = 0;
+			GameItem coin = new GameItem(GameAsset.assetType_ITEM,"uid","ITEM","coin","The currency of the land. Each coin is stamped in the likeness of some long-dead monarch, and associated with a monetary value.",1/*itemValue*/,0/*itemWeight*/,1/*quantity*/,0/*rarity*/,"null");
+			GameItem.add(coin);
+			GameItem gemstone = new GameItem(GameAsset.assetType_ITEM,"uid","ITEM","gemstone","A rough, but sizable chunk of unidentifiable gemstone. If refined, this shiny stone could be worth a fair sum of coin.",10/*itemValue*/,0/*itemWeight*/,1/*quantity*/,1/*rarity*/,"null");
+			GameItem.add(gemstone);
 		}
-		if(travelY && yDistance > 0) {
-			yDir = 2;
-		} else if(travelY && yDistance < 0) {
-			yDir = 0;
-		}
-		if(travelZ && zDistance > 0) {
-			zDir = 2;
-		} else if(travelZ && zDistance < 0) {
-			zDir = 0;
-		}
-		direction = (byte) (xDir << 0 | yDir << 2 | zDir << 4);
-		return direction;
-	}
+		//GameItemModifier (prefix)
+		if(GameItemModifier.getModifierTemplates() == null || GameItemModifier.getModifierTemplates().size() == 0) {
+			GameItemModifier prefixJagged = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"jagged",GameItem.itemType_WEAPON,GameItem.attackType_MELEE,GameItem.damageType_SLASH,new String[]{"condition"},new String[]{"GameActor.condition_BLEED"},new int[]{15},new int[]{30},100);
+			GameItemModifier.add(prefixJagged);
+			GameItemModifier prefixVenemous = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"venemous",GameItem.itemType_WEAPON,-1,-1,new String[]{"condition"},new String[]{"GameActor.condition_POISON"},new int[]{15},new int[]{30},100);
+			GameItemModifier.add(prefixVenemous);
+			GameItemModifier prefixMighty = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"mighty",GameItem.itemType_WEAPON,GameItem.attackType_MELEE,GameItem.damageType_BLUDGEON,new String[]{"condition"},new String[]{"GameActor.condition_STUN"},new int[]{15},new int[]{30},100);
+			GameItemModifier.add(prefixMighty);
+			GameItemModifier prefixWounding = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"wounding",GameItem.itemType_WEAPON,-1,GameItem.damageType_PIERCE,new String[]{"condition"},new String[]{"GameActor.condition_FATIGUE"},new int[]{15},new int[]{30},100);
+			GameItemModifier.add(prefixWounding);
+			GameItemModifier prefixMystic = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"mystic",GameItem.itemType_WEAPON,GameItem.attackType_MAGIC,GameItem.damageType_MAGIC,new String[]{"weaponEffect"},new String[]{"extraAttack"},new int[]{1},new int[]{1},100);
+			GameItemModifier.add(prefixMystic);
+			GameItemModifier prefixBlessed = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"blessed",GameItem.itemType_WEAPON,-1,-1,new String[]{"damageDealt"},new String[]{"X"},new int[]{2},new int[]{2},100);
+			GameItemModifier.add(prefixBlessed);
+			GameItemModifier prefixCursed = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"cursed",GameItem.itemType_WEAPON,-1,-1,new String[]{"damageDealt"},new String[]{"/"},new int[]{2},new int[]{2},100);
+			GameItemModifier.add(prefixCursed);
 
-	/**
-	 * getGeneralTraversalDirection(GameVolume,GameVolume) Given a START and END GameVolume, returns the general direction from START to END. 
-	 * In practice, this method will return a direction which represents whether there will be any movement on the X, Y, and Z axes and whether
-	 * that movement will be NEGATIVE or POSITIVE. (A value of 0b00 represents NEGATIVE movement. A value of 0b01 represents NO movement, and
-	 * a value of 0b10 represents POSITIVE movement. Each of these values are bit-shifted into a representation of 0bZZ_YY_XX value.
-	 * @param from The GameVolume from which to START traversal
-	 * @param to The GameVolume in which to END traversal
-	 * @return Byte representation of the general direction of traversal between the START and END GameVolumes
-	 */
-	protected static byte getGeneralTraversalDirection(GameVolume from, GameVolume to) {
-		byte direction = 0b11_11_11;//ZZ_YY_XX
-		int xDistance = to.xPos - from.xPos;
-		int yDistance = to.yPos - from.yPos;
-		int zDistance = to.zPos - from.zPos;
-		if(xDistance < 0) {
-			direction &= 0b11_11_00;
-		} else if(xDistance > 0) {
-			direction &= 0b11_11_10;
-		} else if(xDistance == 0) {
-			direction &= 0b11_11_01;
-		}
-		if(yDistance < 0) {
-			direction &= 0b11_00_11;
-		} else if(yDistance > 0) {
-			direction &= 0b11_10_11;
-		} else if(yDistance == 0) {
-			direction &= 0b11_01_11;
-		}
-		if(zDistance < 0) {
-			direction &= 0b00_11_11;
-		} else if(zDistance > 0) {
-			direction &= 0b10_11_11;
-		} else if(zDistance == 0) {
-			direction &= 0b01_11_11;
-		}
-		return direction;
-	}
+			GameItemModifier prefixPotent = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"potent",GameItem.itemType_WEAPON,-1,-1,new String[]{"damageDealt"},new String[]{"X"},new int[]{1},new int[]{2},25);
+			GameItemModifier.add(prefixPotent);
+			GameItemModifier prefixLethargic = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"lethargic",GameItem.itemType_WEAPON,-1,-1,new String[]{"damageDealt"},new String[]{"/"},new int[]{1},new int[]{2},25);
+			GameItemModifier.add(prefixLethargic);
+			GameItemModifier prefixDurable = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"durable","ANY",-1,-1,new String[]{"curDurability","maxDurability"},new String[]{"X","X"},new int[]{1,1},new int[]{2,2},25);
+			GameItemModifier.add(prefixDurable);
+			GameItemModifier prefixBrittle = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"brittle","ANY",-1,-1,new String[]{"curDurability","maxDurability"},new String[]{"/","/"},new int[]{1,1},new int[]{2,2},25);
+			GameItemModifier.add(prefixBrittle);
+			GameItemModifier prefixArcane = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"arcane","ANY",-1,-1,new String[]{"curSp","maxSp"},new String[]{"+","+"},new int[]{10,20},new int[]{10,20},25);
+			GameItemModifier.add(prefixArcane);
+			GameItemModifier prefixSanguine = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"sanguine","ANY",-1,-1,new String[]{"curHp","maxHp"},new String[]{"+","+"},new int[]{10,20},new int[]{10,20},25);
+			GameItemModifier.add(prefixSanguine);
+			GameItemModifier prefixLarge = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"large",GameItem.itemType_WEAPON,-1,-1,new String[]{"minRange","maxRange","reach","weight","damageDealt"},new String[]{"X","X","X","X","X"},new int[]{2,2,2,2,2},new int[]{2,2,2,2,2},75);
+			GameItemModifier.add(prefixLarge);
+			GameItemModifier prefixSmall = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"small",GameItem.itemType_WEAPON,-1,-1,new String[]{"minRange","maxRange","reach","weight","damageDealt"},new String[]{"/","/","/","/","/"},new int[]{2,2,2,2,2},new int[]{2,2,2,2,2},25);
+			GameItemModifier.add(prefixSmall);
 
-	/**
-	 * getNextVolumeInDirection(GameVolume,int) Returns the GameVolume which is located in the specified direction from the specified GameVolume
-	 * @param from The GameVolume to use as a baseline
-	 * @param direction The direction in which to look for the next Volume
-	 * @return The GameVolume which is adjacent to the specified GameVolume in the specified direction, or null if none is found
-	 */
-	protected GameVolume getNextVolumeInDirection(GameVolume from, int direction) {
-		GameRoom room = this.visitedRooms.get(this.currentRoomId);
-		GameVolume nextVolume = null;
-		int newX = from.xPos;
-		int newY = from.yPos;
-		int newZ = from.zPos;
-		int xDir = ((byte) direction & 0b00_00_11) >> 0;//extract the X axis direction using a bit mask
-		int yDir = ((byte) direction & 0b00_11_00) >> 2;//extract the Y axis direction using a bit mask
-		int zDir = ((byte) direction & 0b11_00_00) >> 4;//extract the Z axis direction using a bit mask
-		if(xDir == 0) {//NEGATIVE movement on X axis
-			newX--;
-		} else if(xDir == 2) {//POSITIVE movement on X axis
-			newX++;
-		}
-		if(yDir == 0) {//NEGATIVE movement on Y axis
-			newY--;
-		} else if(yDir == 2) {//POSITIVE movement on Y axis
-			newY++;
-		}
-		if(zDir == 0) {//NEGATIVE movement on Z axis
-			newZ--;
-		} else if(zDir == 2) {//POSOTIVE movement on Z axis
-			newZ++;
-		}
-		if(newX < 0 || newX > room.length || newY < 0 || newY > room.width || newZ < 0 || newZ > room.height) {//index out of bounds
-			nextVolume = null;
-		} else {
-			nextVolume = room.interior.get(((newZ - 1) * room.width * room.length) + ((newY - 1) * room.length) + (newX - 1));
-		}
-		return nextVolume;
-	}
+			GameItemModifier prefixGuarding = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"guarding","ANY",-1,-1,new String[]{"damageReduction"},new String[]{"+"},new int[]{1},new int[]{5},100);
+			GameItemModifier.add(prefixGuarding);
+			GameItemModifier prefixShrouding = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"shrouding","ANY",-1,-1,new String[]{"magicResistance"},new String[]{"+"},new int[]{1},new int[]{5},100);
+			GameItemModifier.add(prefixShrouding);
+			GameItemModifier prefixSmiting = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"smiting",GameItem.itemType_WEAPON,GameItem.attackType_MELEE,-1,new String[]{"attackBonusMelee"},new String[]{"+"},new int[]{1},new int[]{5},100);
+			GameItemModifier.add(prefixSmiting);
+			GameItemModifier prefixSeeking = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"seeking",GameItem.itemType_WEAPON,GameItem.attackType_RANGED,-1,new String[]{"attackBonusRanged"},new String[]{"+"},new int[]{1},new int[]{5},100);
+			GameItemModifier.add(prefixSeeking);
+			GameItemModifier prefixScrying = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_PREFIX,"scrying",GameItem.itemType_WEAPON,GameItem.attackType_MAGIC,-1,new String[]{"attackBonusMagic"},new String[]{"+"},new int[]{1},new int[]{5},100);
+			GameItemModifier.add(prefixScrying);
+		//GameItemModifier (suffix)
+			GameItemModifier suffixProtection = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"protection","ANY",-1,-1,new String[]{"armorClass"},new String[]{"+"},new int[]{5},new int[]{10},50);
+			GameItemModifier.add(suffixProtection);
+			GameItemModifier suffixFortune = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"fortune","ANY",-1,-1,new String[]{"ATTRIBUTE","ATTRIBUTE"},new String[]{"goldFind","lootFind"},new int[]{10,1},new int[]{50,5},100);
+			GameItemModifier.add(suffixFortune);
+			GameItemModifier suffixPauper = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"the pauper","ANY",-1,-1,new String[]{"ATTRIBUTE","ATTRIBUTE"},new String[]{"goldFind","lootFind"},new int[]{-10,-1},new int[]{-50,-5},100);
+			GameItemModifier.add(suffixPauper);
+			GameItemModifier suffixVampire = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"the vampire",GameItem.itemType_WEAPON,-1,-1,new String[]{"CONDITION"},new String[]{"lifeSteal"},new int[]{5},new int[]{10},50);
+			GameItemModifier.add(suffixVampire);
+			GameItemModifier suffixRestoration = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"restoration",GameItem.itemType_ARMOR,-1,-1,new String[]{"ATTRIBUTE?"},new String[]{"healthRegen"},new int[]{5},new int[]{10},50);
+			GameItemModifier.add(suffixRestoration);
+			GameItemModifier suffixHealth = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"health",GameItem.itemType_CONSUMABLE,-1,-1,new String[]{"currentHp"},new String[]{"+"},new int[]{5},new int[]{15},15);
+			GameItemModifier.add(suffixHealth);
+			GameItemModifier suffixEnergy = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"energy",GameItem.itemType_CONSUMABLE,-1,-1,new String[]{"currentSp"},new String[]{"+"},new int[]{5},new int[]{15},15);
+			GameItemModifier.add(suffixEnergy);
+			GameItemModifier suffixDoom = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"doom",GameItem.itemType_WEAPON,-1,-1,new String[]{"condition"},new String[]{"GameActor.condition_INSTA_KILL"},new int[]{1},new int[]{15},250);
+			GameItemModifier.add(suffixDoom);
 
-	/**
-	 * canAttack(String,String,String,String)
-	 * @param room The GameRoom in which the FROM and TO GameVolumes exist
-	 * @param startVolume The GameVolume in which the player is located
-	 * @param targetVolume The GameVolume in which the target is located
-	 * @param targetIndex The index of the ArrayList in which the target is stored (if multiple of the same Entity template are in the same GameVolume)
-	 * @param targetType The type of Game entity you are trying to attack
-	 * @param targetName The name of the Entity to attack (Enemy, Object, Item, Spell, Self, etc.)
-	 * @param method The method by which to attack (Melee, Ranged, Thrown, Spell, etc.)
-	 * @param implement The name of the implement with which to attack the Entity
-	 * @return Success or Failure of the Attack attempt
-	 */
-	protected boolean canAttack(GameRoom room, GameVolume startVolume, GameVolume targetVolume, int targetIndex, String targetType, String targetName, String method, String implement) {
-		boolean canAttack = false;
-		double targetDistance = distanceSquaredBetween(startVolume,targetVolume);
-		GameItem item = GameItem.lookup(implement);
-		if(item == null) {//implement not a valid GameItem (fists, for example)
-			if(targetDistance > 3) {//target is > 1 GameVolume away in any direction
-				return false;
-			}
-		}
-//		List<Integer> attackVectorIndices = getTraversalPath(startVolume,targetVolume);
-		List<GameVolume> traversalVolumes = getTraversalPath(startVolume,targetVolume);
-		List<Byte> traversalDirections = new ArrayList<Byte>();
-		GameVolume start = traversalVolumes.get(0);
-		GameVolume end = traversalVolumes.get(traversalVolumes.size() - 1);
-		for(int i = 0; i < traversalVolumes.size() - 1; i++) {
-			GameVolume from = traversalVolumes.get(i);
-			GameVolume to = traversalVolumes.get(i + 1);
-			traversalDirections.add(getTraversalDirection(from,to,traversalVolumes.size() - 1,i,end.xPos - start.xPos,end.yPos - start.yPos,end.zPos - start.zPos));
-		}
-		switch (targetType) {
-		case "enemy"://attack an ENEMY
-			GameEnemy targetEnemy = targetVolume.enemies.get(targetName).get(targetIndex);
-			
-			break;
-		case "object"://attack an OBJECT
-			GameObject targetObject = targetVolume.objects.get(targetName).get(targetIndex);
-			
-			break;
-		case "item"://attack an ITEM
-			GameItem targetItem = targetVolume.items.get(targetName).get(targetIndex);
-			
-			break;
-		case "spell"://attack a SPELL
-			
-			break;
-		case "self"://attack SELF? okay...
-			canAttack = true;
-			break;
-		default://unknown target
-			canAttack = false;
-			break;
-		}
-		return canAttack;
-	}
+			GameItemModifier suffixFrost = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"frost",GameItem.itemType_WEAPON,-1,-1,new String[]{"applyTarget"},new String[]{GameSpell.damage_COLD},new int[]{5},new int[]{15},50);
+			GameItemModifier.add(suffixFrost);
+			GameItemModifier suffixFire = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"fire",GameItem.itemType_WEAPON,-1,-1,new String[]{"applyTarget"},new String[]{GameSpell.damage_FIRE},new int[]{5},new int[]{15},50);
+			GameItemModifier.add(suffixFire);
+			GameItemModifier suffixLightning = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"lightning",GameItem.itemType_WEAPON,-1,-1,new String[]{"applyTarget"},new String[]{GameSpell.damage_ELECTRIC},new int[]{5},new int[]{15},50);
+			GameItemModifier.add(suffixLightning);
+			GameItemModifier suffixForce = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"force",GameItem.itemType_WEAPON,-1,-1,new String[]{"applyTarget"},new String[]{GameSpell.damage_FORCE},new int[]{5},new int[]{15},50);
+			GameItemModifier.add(suffixForce);
+			GameItemModifier suffixInsanity = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"insanity",GameItem.itemType_WEAPON,-1,-1,new String[]{"applyTarget"},new String[]{GameSpell.damage_PSYCHIC},new int[]{5},new int[]{15},50);
+			GameItemModifier.add(suffixInsanity);
+			GameItemModifier suffixGravity = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"gravity",GameItem.itemType_WEAPON,-1,-1,new String[]{"applyTarget"},new String[]{GameSpell.damage_CRUSHING},new int[]{5},new int[]{15},50);
+			GameItemModifier.add(suffixGravity);
+			GameItemModifier suffixHealing = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"healing",GameItem.itemType_WEAPON,-1,-1,new String[]{"applySelf"},new String[]{GameSpell.damage_HEALING},new int[]{5},new int[]{15},100);
+			GameItemModifier.add(suffixHealing);
 
-	/**
-	 * canCarry Checks to see if the weight of an item (or stack of items) can be carried by the Player
-	 * @param itemWeight Weight of the item (or stack of items) which the Player wants to pick up
-	 * @return True or False
-	 */
-	protected boolean canCarry(double itemWeight) {
-		return itemWeight + this.currentWeight <= this.maxWeight;
-	}
-
-	/**
-	 * canTraverse(int,int,int,int) Determines whether the Player can enter or exit the GameVolume indicated by x,y,z position, can be passed through.
-	 * @param xPos The X coordinate of the indicated volume. Should be > 0.
-	 * @param yPos The Y coordinate of the indicated volume. Should be > 0.
-	 * @param zPos The Z coordinate of the indicated volume. Should be > 0.
-	 * @param direction The direction of traversal through the indicated volume.
-	 * @return An indication of whether the Player can traverse through the indicated volume in the indicated direction.
-	 */
-	protected boolean canTraverse(int xPos, int yPos, int zPos, byte direction) {
-		if(xPos > 0 && yPos > 0 && zPos > 0 && direction >= 0 && direction <= 42 && this.visitedRooms.get(this.currentRoomId).interior != null && this.visitedRooms.get(this.currentRoomId).interior.size() >= (xPos * yPos * zPos)) {
-			GameRoom room = this.visitedRooms.get(this.currentRoomId);
-			GameVolume volume = this.visitedRooms.get(this.currentRoomId).interior.get(((zPos - 1) * room.width * room.length) + ((yPos - 1) * room.length) + (xPos - 1));
-			boolean canPass = false;
-			byte passableDirs = volume.passableDirs;
-			//TODO: FINISH THIS METHOD!
-			return volume.canTraverse && canPass;
+			GameItemModifier suffixBull = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"the bull","ANY",-1,-1,new String[]{"ability_STR"},new String[]{"+"},new int[]{1},new int[]{5},100);//(BRAWN)
+			GameItemModifier.add(suffixBull);
+			GameItemModifier suffixBoar = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"the boar","ANY",-1,-1,new String[]{"ability_DEX"},new String[]{"+"},new int[]{1},new int[]{5},100);//(VIGOR)
+			GameItemModifier.add(suffixBoar);
+			GameItemModifier suffixHawk = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"the hawk","ANY",-1,-1,new String[]{"ability_CON"},new String[]{"+"},new int[]{1},new int[]{5},100);//(SPEED)(FLEET)(QUICK)(DODGE)
+			GameItemModifier.add(suffixHawk);
+			GameItemModifier suffixCrow = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"the crow","ANY",-1,-1,new String[]{"ability_INT"},new String[]{"+"},new int[]{1},new int[]{5},100);//(LOGIC)
+			GameItemModifier.add(suffixCrow);
+			GameItemModifier suffixWolf = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"the wolf","ANY",-1,-1,new String[]{"ability_WIS"},new String[]{"+"},new int[]{1},new int[]{5},100);//(SENSE)
+			GameItemModifier.add(suffixWolf);
+			GameItemModifier suffixSeal = new GameItemModifier(GameAsset.assetType_ITEM_MODIFIER,GameAsset.generateUid(GameAsset.assetType_ITEM_MODIFIER),GameItemModifier.modifierType_SUFFIX,"the seal","ANY",-1,-1,new String[]{"ability_CHA"},new String[]{"+"},new int[]{1},new int[]{5},100);//(CHARM)
+			GameItemModifier.add(suffixSeal);
 		}
-		return false;
-	}
-
-	/**
-	 * traverse(int,int,int,int,int) Moves the Player in the specified Direction & the specified Distance, if able
-	 * <br><br>
-	 * NOTE: The 3-dimensional space inside the GameRoom is set up so that the coordinate [1,1,1] is at the left-most, down-most, bottom-most corner. That would look something like:<br>
-	 * <br>
-	 * <b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-	 * FLOOR_1:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-	 * FLOOR_2:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-	 * FLOOR_3:</b><br>
-	 * [1,3,1][2,3,1][3,3,1]&nbsp;&nbsp;&nbsp;&nbsp;
-	 * [1,3,2][2,3,2][3,3,2]&nbsp;&nbsp;&nbsp;&nbsp;
-	 * [1,3,3][2,3,3][3,3,3]<br>
-	 * [1,2,1][2,2,1][3,2,1]&nbsp;&nbsp;&nbsp;&nbsp;
-	 * [1,2,2][2,2,2][3,2,2]&nbsp;&nbsp;&nbsp;&nbsp;
-	 * [1,2,3][2,2,3][3,2,3]<br>
-	 * [1,1,1][2,1,1][3,1,1]&nbsp;&nbsp;&nbsp;&nbsp;
-	 * [1,1,2][2,1,2][3,1,2]&nbsp;&nbsp;&nbsp;&nbsp;
-	 * [1,1,3][2,1,3][3,1,3]<br>
-	 * <br>
-	 * In this example, coordinate [1,1,1] is in the SOUTHWEST corner of the LOWEST floor, and coordinate [3,3,3] is in the NORTHEAST corner of the HIGHEST floor.
-	 * @param xPos The X coordinate of the indicated volume. Should be > 0.
-	 * @param yPos The Y coordinate of the indicated volume. Should be > 0.
-	 * @param zPos The Z coordinate of the indicated volume. Should be > 0.
-	 * @param direction The direction of traversal through the indicated volume.
-	 * @param distance The distance to be traveled, in units of GameVolume
-	 */
-	protected String traverse(int xPos, int yPos, int zPos, byte direction, int distance) {
-		GameRoom room = this.visitedRooms.get(this.currentRoomId);
-		String moveString = "";
-		boolean canPath = true;
-		int distanceLeft = distance;
-		while(canPath && distanceLeft > 0) {//determine next coordinate to look up based on direction
-			int newX = xPos;
-			int newY = yPos;
-			int newZ = zPos;
-			int xDir = ((byte) direction & 0b00_00_11) >> 0;//extract the X axis direction using a bit mask
-			int yDir = ((byte) direction & 0b00_11_00) >> 2;//extract the Y axis direction using a bit mask
-			int zDir = ((byte) direction & 0b11_00_00) >> 4;//extract the Z axis direction using a bit mask
-			if(xDir == 0) {//NEGATIVE movement on X axis
-				newX--;
-			} else if(xDir == 2) {//POSITIVE movement on X axis
-				newX++;
-			}
-			if(yDir == 0) {//NEGATIVE movement on Y axis
-				newY--;
-			} else if(yDir == 2) {//POSITIVE movement on Y axis
-				newY++;
-			}
-			if(zDir == 0) {//NEGATIVE movement on Z axis
-				newZ--;
-			} else if(zDir == 2) {//POSOTIVE movement on Z axis
-				newZ++;
-			}
-			if(this.canTraverse(newX, newY, newZ, direction)) {
-				this.roomVolumeIndex = ((newZ * room.width * room.length) + (newY * room.length) + newX);
-				distanceLeft--;
-			} else {
-				canPath = false;
-				moveString = "You move " + (distance - distanceLeft) + " meter(s) " + getDirectionName(direction) + ".";
-			}
+		//GameObject
+		if(GameObject.getObjectTemplates() == null || GameObject.getObjectTemplates().size() == 0) {
+			GameObject chest = new GameObject(GameAsset.assetType_OBJECT_CONTAINER,GameAsset.generateUid(GameAsset.assetType_OBJECT_CONTAINER),GameObject.objectType_CONTAINER,"chest","A rough wooden chest, with an old iron lock, two leather straps for handles, and cast iron hinges. It looks heavy.",true,false,true,new ArrayList<GameItem>(),true,true,50,50);
+			GameObject.add(chest);
 		}
-		return moveString;
-	}
-
-	/**
-	 * getDirectionName(byte) Returns the lexical representation of the indicated direction
-	 * @param direction Byte representation of an [X,Y,Z] direction
-	 * @return String containing the lexical representation of the given direction
-	 */
-	protected static String getDirectionName(byte direction) {
-		String moveDir = "";
-		int xDir = ((byte) direction & 0b00_00_11) >> 0;//extract the X axis direction using a bit mask
-		int yDir = ((byte) direction & 0b00_11_00) >> 2;//extract the Y axis direction using a bit mask
-		int zDir = ((byte) direction & 0b11_00_00) >> 4;//extract the Z axis direction using a bit mask
-		if(yDir == 0) {
-			moveDir = "SOUTH";
-		} else if(yDir == 2) {
-			moveDir = "NORTH";
+		//GameRoom
+		if(GameRoom.getRoomTemplates() == null || GameRoom.getRoomTemplates().size() == 0) {
+			GameRoom defaultRoom = new GameRoom(GameAsset.assetType_ROOM,"uid",0,"This is a very spooky-looking room. Lots of cobwebs and dust and things like that.",3,3,1,GameRoom.makeRoomVolume(3,3,1));
+			GameRoom.add(defaultRoom);
+			List<GameVolume> octagonalRoomInterior = new ArrayList<GameVolume>();
+			//TODO: set up the interior so that the diagonals are 7x7 & the sides are 10x1 -> 5 units high, with pillars, objects, items, enemies, etc.
+			GameRoom octagonalCrypt10 = new GameRoom(GameAsset.assetType_ROOM,"uid",1,"A dark and dank octagonal crypt. There is a large stone fountain in the center of the room. You can hear the sound of running water coming from it. The EAST and WEST walls of the room each house an arched DOOR, both of which seem to be securely latched. The NORTH wall is covered in moth-eaten tapestries depicting a romanticized version of an ancient battle. The SOUTH wall is obscured by rows of stacked boxes and crates, all rotten and soggy. There is a sputtering torch mounted on a stand near the WEST DOOR.",24,24,5,GameRoom.makeRoomVolume(24,24,5));
+			GameRoom.add(octagonalCrypt10);
 		}
-		if(xDir != 1) {
-			if(xDir == 0) {
-				moveDir += "WEST";
-			} else if(xDir == 2) {
-				moveDir += "EAST";
-			}
+		//GameSpell
+		if(GameSpell.getSpellTemplates() == null || GameSpell.getSpellTemplates().size() == 0) {
+			GameSpell lightning = new GameSpell(GameAsset.assetType_SPELL,"uid","lightning","An arc of electricity leaps from your hand to shock and stun an enemy.",2,3,false,0,null);
+			GameSpell.add(lightning);
+			GameSpell fireBolt = new GameSpell(GameAsset.assetType_SPELL,"uid","fire bolt","A small bolt of flame shoots from your extended fingertip.",0,0,false,0,null);
+			GameSpell.add(fireBolt);
+			GameSpell thunder = new GameSpell(GameAsset.assetType_SPELL,"uid","thunder","A thunderclap erupts from your mouth as you utter the incantation, buffeting an enemy with a shockwave of sound.",2,4,false,0,null);
+			GameSpell.add(thunder);
 		}
-		if(zDir != 1) {
-			if(moveDir.length() > 0) {
-				moveDir += " & ";
-			}
-			if(zDir == 0) {
-				moveDir += "DOWN";
-			} else if(zDir == 2) {
-				moveDir += "UP";
-			}
-		}
-		return moveDir;
-	}
-
-	/**
-	 * getBytes() Converts the current GameState into a byte[] so it can be written to disk
-	 * @return byte[] containing the current GameState
-	 */
-	protected byte[] getBytes() {
-	/*
-		¦ = separator between RESOURCE File entries
-		$ = separator between STATE fields
-		€ = separator between list entries of ROOMs
-		ƒ = separator between ROOM fields
-		± = separator between list entries of VOLUMEs
-		° = separator between VOLUME fields
-		‡ = separator between list entries of OBJECTs/ENEMYs
-		§ = separator between OBJECT/ENEMY fields
-		¶ = separator between list entries of ITEMs/SPELLs
-		| = separator between ITEM/SPELL fields
-		ß = separator between list entries of PREFIX/SUFFIX
-		µ = separator between PREFIX/SUFFIX fields
-		· = separator between PREFIX/SUFFIX array members
-	 */
-		String returnString = this.currentXp + "$" + this.currentLevel + "$" + this.currentHp + "$" + this.maxHp + "$" + this.heldItem + "$";
-		if(this.inventory != null && this.inventory.size() > 0) {
-			List<GameItem> inventoryItems = new ArrayList<GameItem>();
-			inventoryItems.addAll(this.inventory.values());
-			for(int i = 0; i < inventoryItems.size(); i++) {
-				returnString += inventoryItems.get(i).getByteString();
-				if(i < inventoryItems.size() - 1) {
-					returnString += "¶";
-				}
-			}
-		} else {
-			returnString += "null";
-		}
-		returnString += "$" + this.currentWeight + "$" + this.maxWeight + "$" + this.currentRoomId + "$" + this.inInventory + "$";
-		if(this.visitedRooms != null && this.visitedRooms.size() > 0) {
-			List<GameRoom> seenRooms = new ArrayList<GameRoom>();
-			seenRooms.addAll(this.visitedRooms.values());
-			for(int i = 0; i < seenRooms.size(); i++) {
-				returnString += seenRooms.get(i).getByteString();
-				if(i < seenRooms.size() - 1) {
-					returnString += "€";
-				}
-			}
-		} else {
-			returnString += "null";
-		}
-		returnString += "$" + this.roomVolumeIndex + "$" + this.armorClass + "$" + this.damageReduction + "$" + this.magicResistance + "$" + this.initiative + "$";
-		if(this.spellbook != null && this.spellbook.size() > 0) {
-			List<GameSpell> playerSpells = new ArrayList<GameSpell>();
-			playerSpells.addAll(this.spellbook.values());
-			for(int i = 0; i < playerSpells.size(); i++) {
-				returnString += playerSpells.get(i).getByteString();
-				if(i < playerSpells.size() - 1) {
-					returnString += "¶";
-				}
-			}
-		} else {
-			returnString += "null";
-		}
-		returnString += "$" + this.currentSp + "$" + this.maxSp + "$" + this.attackBonusMelee + "$" + this.attackBonusRanged + "$" + this.attackBonusMagic;
-		return returnString.getBytes();
-	}
-
-	/**
-	 * parseBytes(byte[]) Parses an array of bytes and translates them into a GameState to be loaded
-	 * @param bytes The byte array containing the loaded GameState
-	 * @return GameState contained in the byte array
-	 */
-	protected static GameState parseBytes(byte[] bytes) {
-		String s = new String(bytes);
-		String[] stateData = s.split("\\$");
-		GameState gameState = null;
-		if(stateData.length <= 22) {
-			if(stateData.length < 12) {
-				return gameState;
-			} else {
-				String[] inventory = stateData[5].split("¶");
-				String[] visitedRooms = stateData[10].split("€");
-				Map<String,GameItem> inv = new HashMap<String,GameItem>();
-				for(String itemData: inventory) {
-					GameItem item = GameItem.parseBytes(itemData.getBytes());
-					if(item != null) {
-						inv.put(item.name, item);
-					}
-				}
-				Map<Integer,GameRoom> rooms = new HashMap<Integer,GameRoom>();
-				for(String roomData: visitedRooms) {
-					GameRoom room = GameRoom.parseBytes(roomData.getBytes());
-					if(room != null) {
-						rooms.put(room.roomId, room);
-					}
-				}
-				gameState = new GameState(
-						Integer.parseInt(stateData[0]),//currentXp
-						Integer.parseInt(stateData[1]),//currentLevel
-						Integer.parseInt(stateData[2]),//currentHp
-						Integer.parseInt(stateData[3]),//maxHp
-						stateData[4],//heldItem
-						inv,//inventory
-						Double.parseDouble(stateData[6]),//currentWeight
-						Double.parseDouble(stateData[7]),//maxWeight
-						Integer.parseInt(stateData[8]),//currentRoomId
-						Boolean.parseBoolean(stateData[9]),//inInventory
-						rooms,//visitedRooms
-						Integer.parseInt(stateData[11])//roomVolumeIndex
-				);
-			}
-			if(stateData.length == 12) {
-				return gameState;
-			}
-			String[] playerSpells = stateData[16].split("¶");
-			Map<String,GameSpell> spells = new HashMap<String,GameSpell>();
-			for(String spellData: playerSpells) {
-				GameSpell spell = GameSpell.parseBytes(spellData.getBytes());
-				if(spell != null) {
-					spells.put(spell.name,spell);
-				}
-			}
-			gameState = new GameState(
-				gameState,
-				Integer.parseInt(stateData[12]),//armorClass
-				Integer.parseInt(stateData[13]),//damageReduction
-				Integer.parseInt(stateData[14]),//magicResistance
-				Integer.parseInt(stateData[15]),//initiative
-				spells,//spellBook
-				Integer.parseInt(stateData[17]),//currentSp
-				Integer.parseInt(stateData[18]),//maxSp
-				Integer.parseInt(stateData[19]),//attackBonusMelee
-				Integer.parseInt(stateData[20]),//attackBonusRanged
-				Integer.parseInt(stateData[21])//attackBonusMagic
-			);
-		}
-		return gameState;
 	}
 }
